@@ -18,6 +18,10 @@ header h1 { font-size: 19px; font-weight: 500; }
 .btn:hover { background: #f0efe8; }
 .btn-primary { background: #1a1a18; color: #fff; border-color: #1a1a18; }
 .btn-primary:hover { background: #333; }
+.btn-danger { background: #fff; color: #c04040; border-color: #f0cfc8; }
+.btn-danger:hover { background: #fcefef; }
+.btn-publish { background: #2a7a3b; color: #fff; border-color: #2a7a3b; }
+.btn-publish:hover { background: #236332; }
 
 .menu-wrap { position: relative; }
 .dropdown { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #e0dfd8; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.1); min-width: 220px; z-index: 100; overflow: hidden; }
@@ -35,6 +39,28 @@ header h1 { font-size: 19px; font-weight: 500; }
 
 .container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
 
+/* ── Meal Plan Card ── */
+.plan-card { background: #fff; border: 1px solid #e0dfd8; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+.plan-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0efe8; }
+.plan-header h2 { font-size: 15px; font-weight: 500; }
+.plan-header-actions { display: flex; gap: 8px; }
+.plan-empty { padding: 20px 18px; font-size: 13px; color: #aaa; }
+.plan-days { padding: 6px 0; }
+.plan-day { display: flex; align-items: center; gap: 0; padding: 0 18px; border-bottom: 1px solid #f8f7f4; }
+.plan-day:last-child { border-bottom: none; }
+.plan-day-label { font-size: 12px; font-weight: 500; color: #aaa; width: 96px; flex-shrink: 0; padding: 10px 0; }
+.plan-day-meal { flex: 1; }
+.plan-day-slot { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px dashed #f0efe8; }
+.plan-day-slot:last-child { border-bottom: none; }
+.drag-handle { cursor: grab; color: #ccc; font-size: 16px; padding: 0 4px; user-select: none; flex-shrink: 0; }
+.drag-handle:active { cursor: grabbing; }
+.plan-slot-name { flex: 1; font-size: 14px; }
+.plan-slot-remove { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; cursor: pointer; color: #ccc; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.plan-slot-remove:hover { color: #c04040; background: #fcefef; }
+.plan-day.drag-over { background: #f0f7ff; }
+.dragging { opacity: .4; }
+
+/* ── Add Meal Card ── */
 .add-card { background: #fff; border: 1px solid #e0dfd8; border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; }
 .add-card h2 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: #555; }
 .add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
@@ -44,6 +70,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .tag-pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d0cfc8; background: #fafaf8; cursor: pointer; user-select: none; transition: all .15s; color: #555; }
 .tag-pill.selected { background: #1a1a18; border-color: #1a1a18; color: #fff; }
 
+/* ── Filters ── */
 .controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 .filter-btn { padding: 5px 13px; border-radius: 999px; border: 1px solid #d0cfc8; background: #fff; color: #555; font-size: 13px; cursor: pointer; transition: all .15s; }
 .filter-btn.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
@@ -51,16 +78,17 @@ header h1 { font-size: 19px; font-weight: 500; }
 .search-wrap input { padding: 6px 12px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; background: #fff; outline: none; width: 180px; }
 .search-wrap input:focus { border-color: #378ADD; }
 
+/* ── Meal List ── */
 .meal-grid { display: flex; flex-direction: column; gap: 4px; }
 .meal-row { background: #fff; border: 1px solid #e8e7e0; border-radius: 10px; overflow: hidden; transition: border-color .15s; }
 .meal-row:hover { border-color: #c0bfb8; }
-.meal-main { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; }
+.meal-main { display: grid; grid-template-columns: 28px 28px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; }
 .rank { font-size: 12px; color: #bbb; text-align: right; }
+.meal-check { width: 18px; height: 18px; cursor: pointer; accent-color: #1a1a18; flex-shrink: 0; }
 .meal-info { min-width: 0; }
 .meal-name { font-size: 14px; font-weight: 500; }
 .meal-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f0efe8; color: #555; }
-
 .meal-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .count-area { display: flex; align-items: center; gap: 4px; }
 .count-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #d0cfc8; background: #fafaf8; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; color: #555; }
@@ -72,6 +100,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .btn-del { width: 26px; height: 26px; border-radius: 6px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; font-size: 14px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
 .meal-row:hover .btn-del { opacity: 1; }
 
+/* ── Inline tag editor ── */
 .meal-editor { border-top: 1px solid #f0efe8; padding: 12px 14px 14px; background: #fafaf9; display: none; }
 .meal-editor.open { display: block; }
 .editor-label { font-size: 11px; font-weight: 500; color: #aaa; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
@@ -86,44 +115,89 @@ header h1 { font-size: 19px; font-weight: 500; }
 .editor-add-row button:hover { background: #f0efe8; }
 .editor-no-tags { font-size: 12px; color: #bbb; padding: 4px 0; }
 
+/* ── Modals ── */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; align-items: center; justify-content: center; }
 .modal-overlay.show { display: flex; }
-.modal { background: #fff; border-radius: 14px; padding: 24px; width: 400px; max-width: 95vw; max-height: 80vh; display: flex; flex-direction: column; }
+.modal { background: #fff; border-radius: 14px; padding: 24px; width: 440px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; }
 .modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 4px; flex-shrink: 0; }
 .modal-note { font-size: 12px; color: #999; margin-bottom: 16px; flex-shrink: 0; }
-.tag-manage-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-.tag-manage-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #e8e7e0; border-radius: 8px; flex-shrink: 0; }
+.modal-scroll { flex: 1; overflow-y: auto; }
+.tag-manage-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.tag-manage-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #e8e7e0; border-radius: 8px; }
 .tag-manage-name { flex: 1; font-size: 13px; font-weight: 500; }
 .tag-manage-count { font-size: 12px; color: #aaa; white-space: nowrap; }
 .tag-manage-del { padding: 4px 12px; font-size: 12px; border: 1px solid #f0cfc8; border-radius: 6px; background: transparent; color: #c04040; cursor: pointer; white-space: nowrap; }
 .tag-manage-del:hover { background: #fcefef; }
-.modal-add { display: flex; gap: 8px; flex-shrink: 0; }
+.modal-add { display: flex; gap: 8px; flex-shrink: 0; margin-top: 4px; }
 .modal-add input { flex: 1; padding: 8px 12px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; outline: none; }
 .modal-add input:focus { border-color: #378ADD; }
 .modal-footer { margin-top: 14px; display: flex; justify-content: flex-end; flex-shrink: 0; }
 
+/* History modal */
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item { border: 1px solid #e8e7e0; border-radius: 10px; overflow: hidden; }
+.history-header { padding: 10px 14px; background: #fafaf8; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.history-date { font-size: 13px; font-weight: 500; }
+.history-count { font-size: 12px; color: #aaa; }
+.history-body { display: none; border-top: 1px solid #f0efe8; }
+.history-body.open { display: block; }
+.history-day-row { display: flex; gap: 12px; padding: 7px 14px; border-bottom: 1px solid #f8f7f4; font-size: 13px; }
+.history-day-row:last-child { border-bottom: none; }
+.history-day-label { font-weight: 500; color: #aaa; width: 90px; flex-shrink: 0; }
+
+/* ── Status ── */
 .empty { text-align: center; padding: 48px 16px; color: #999; font-size: 14px; }
 .status-bar { font-size: 12px; color: #888; padding: 8px 0; text-align: center; min-height: 28px; }
 .status-bar.error { color: #c04040; }
 .loader { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.7); align-items: center; justify-content: center; font-size: 14px; color: #555; z-index: 99; }
 .loader.show { display: flex; }
+
+/* ── Print styles ── */
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; }
+  header, .add-card, .controls, .meal-grid, .status-bar, .plan-header-actions { display: none !important; }
+  .plan-card { border: none; margin: 0; box-shadow: none; }
+  .print-header { display: block !important; }
+  .plan-day { break-inside: avoid; }
+}
+.print-header { display: none; text-align: center; margin-bottom: 24px; }
+.print-header h2 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.print-header p { font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
 
 <div class="loader" id="loader">Loading…</div>
 
+<!-- Tag management modal -->
 <div class="modal-overlay" id="tag-modal" onclick="if(event.target===this)closeTagModal()">
   <div class="modal">
     <h3>Manage tags</h3>
     <p class="modal-note">Deleting a tag removes it from all meals.</p>
-    <div class="tag-manage-list" id="tag-manage-list"></div>
+    <div class="modal-scroll">
+      <div class="tag-manage-list" id="tag-manage-list"></div>
+    </div>
     <div class="modal-add">
       <input type="text" id="new-global-tag" placeholder="New tag name…" />
       <button class="btn btn-primary" onclick="addGlobalTag()">Add</button>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeTagModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="modal-overlay" id="history-modal" onclick="if(event.target===this)closeHistoryModal()">
+  <div class="modal">
+    <h3>Meal plan history</h3>
+    <p class="modal-note">Previously published meal plans.</p>
+    <div class="modal-scroll">
+      <div class="history-list" id="history-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeHistoryModal()">Close</button>
     </div>
   </div>
 </div>
@@ -147,11 +221,37 @@ header h1 { font-size: 19px; font-weight: 500; }
         <span class="di-icon">🏷️</span>
         <span class="di-label">Manage tags</span>
       </div>
+      <div class="dropdown-section">Meal Plans</div>
+      <div class="dropdown-item" onclick="openHistoryModal()">
+        <span class="di-icon">📋</span>
+        <span class="di-label">View past meal plans</span>
+      </div>
     </div>
   </div>
 </header>
 
 <div class="container">
+
+  <!-- Meal Plan Card -->
+  <div class="plan-card" id="plan-card">
+    <div class="print-header">
+      <h2>Weekly Meal Plan</h2>
+      <p id="print-date"></p>
+    </div>
+    <div class="plan-header">
+      <h2>📅 This week's plan</h2>
+      <div class="plan-header-actions">
+        <button class="btn btn-danger" onclick="clearPlan()">Clear</button>
+        <button class="btn btn-publish" onclick="publishPlan()">Publish & Print</button>
+      </div>
+    </div>
+    <div id="plan-body">
+      <div class="plan-empty" id="plan-empty">Check meals below to add them to this week's plan.</div>
+      <div class="plan-days" id="plan-days" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Add Meal -->
   <div class="add-card">
     <h2>Add a meal</h2>
     <div class="add-row">
@@ -170,6 +270,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 const SUPABASE_URL = 'https://ylcthybtssnthhesbydt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsY3RoeWJ0c3NudGhoZXNieWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NTgzNjQsImV4cCI6MjA5NjQzNDM2NH0.PB1Geq9B7yjqFNNWnlkPOn3CFqHzwOBU9MdZMQsKibE';
 const DEFAULT_TAGS = ['Summer','Fall','Winter','Spring'];
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const H = {
   'Content-Type': 'application/json',
   'apikey': SUPABASE_KEY,
@@ -179,6 +280,10 @@ const H = {
 
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
 let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [];
+
+// Plan state: array of {dayIndex, mealName} in display order
+let planItems = [];
+let dragSrc = null;
 
 async function api(method, path, body) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -193,30 +298,19 @@ async function api(method, path, body) {
 async function boot() {
   document.getElementById('loader').classList.add('show');
   try {
-    // Load tags — fall back to defaults if table missing or empty
     try {
       let tagRows = await api('GET', 'tags?select=*');
       if (tagRows && tagRows.length) {
         tagsRowId = tagRows[0].id;
-        // Merge DB tags with any tags found on meals (safety net)
-        allTags = tagRows[0].names && tagRows[0].names.length
-          ? tagRows[0].names
-          : [...DEFAULT_TAGS];
+        allTags = tagRows[0].names && tagRows[0].names.length ? tagRows[0].names : [...DEFAULT_TAGS];
       } else {
-        // Table exists but empty — seed it
         const r = await api('POST', 'tags', { names: [...DEFAULT_TAGS] });
         if (r && r[0]) { tagsRowId = r[0].id; allTags = [...DEFAULT_TAGS]; }
       }
-    } catch(tagErr) {
-      // tags table doesn't exist yet — use defaults and show hint
-      console.warn('Tags table not found, using defaults:', tagErr.message);
-      allTags = [...DEFAULT_TAGS];
-      setStatus('Note: run the tags table SQL in Supabase to enable tag management.', false);
-    }
+    } catch(e) { allTags = [...DEFAULT_TAGS]; }
 
     meals = await api('GET', 'meals?select=*&order=count.desc,name.asc');
 
-    // Collect any tags that exist on meals but aren't in allTags yet
     const mealTagSet = new Set(allTags);
     for (const meal of meals) {
       for (const t of (meal.season || [])) {
@@ -227,18 +321,20 @@ async function boot() {
     buildFilterBar();
     buildAddPills();
     renderList();
+    renderPlan();
   } catch(e) {
     setStatus('Error loading: ' + e.message, true);
-    console.error(e);
   }
   document.getElementById('loader').classList.remove('show');
 }
 
+// ── Tag label ─────────────────────────────────────────────────────────────────
 function tagLabel(t) {
   const icons = { Summer:'☀️', Fall:'🍂', Winter:'❄️', Spring:'🌱' };
   return (icons[t] ? icons[t] + ' ' : '') + t;
 }
 
+// ── Filter bar ────────────────────────────────────────────────────────────────
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   bar.innerHTML =
@@ -247,12 +343,20 @@ function buildFilterBar() {
       `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
     ).join('') +
     `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>`;
-
-  // Re-attach search listener each time bar is rebuilt
-  const searchEl = document.getElementById('search');
-  if (searchEl) searchEl.addEventListener('input', renderList);
+  const s = document.getElementById('search');
+  if (s) s.addEventListener('input', renderList);
 }
 
+document.getElementById('filter-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  currentFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+});
+
+// ── Add tag pills ─────────────────────────────────────────────────────────────
 function buildAddPills() {
   document.getElementById('add-tag-pills').innerHTML = allTags.map(t => {
     const sel = selectedAddTags.includes(t);
@@ -260,6 +364,7 @@ function buildAddPills() {
   }).join('');
 }
 
+// ── Meal list render ──────────────────────────────────────────────────────────
 function renderList() {
   const grid = document.getElementById('meal-grid');
   const searchEl = document.getElementById('search');
@@ -272,10 +377,13 @@ function renderList() {
   document.getElementById('meal-count').textContent = meals.length + ' meals tracked';
   if (!filtered.length) { grid.innerHTML = '<div class="empty">No meals found.</div>'; return; }
 
+  const checkedNames = new Set(planItems.map(p => p.mealName));
+
   grid.innerHTML = filtered.map((m, i) => {
     const tags = m.season || [];
     const badges = tags.map(t => `<span class="badge">${tagLabel(t)}</span>`).join('');
     const isOpen = openEditorId === m.id;
+    const isChecked = checkedNames.has(m.name);
     const countHtml = showCounts
       ? `<div class="count-area">
            <button class="count-btn" onclick="adjustCount('${m.id}',-1)">−</button>
@@ -286,6 +394,7 @@ function renderList() {
     return `<div class="meal-row" id="row-${m.id}">
       <div class="meal-main">
         <span class="rank">${i+1}</span>
+        <input type="checkbox" class="meal-check" ${isChecked?'checked':''} onchange="togglePlanMeal('${escAttr(m.name)}',this.checked)" title="Add to this week's plan" />
         <div class="meal-info">
           <div class="meal-name">${escH(m.name)}</div>
           ${tags.length ? `<div class="meal-tags">${badges}</div>` : ''}
@@ -301,35 +410,194 @@ function renderList() {
   }).join('');
 }
 
+// ── Plan ──────────────────────────────────────────────────────────────────────
+function togglePlanMeal(name, checked) {
+  if (checked) {
+    if (!planItems.find(p => p.mealName === name)) {
+      // Assign next available day
+      const usedDays = planItems.map(p => p.dayIndex);
+      let day = DAYS.findIndex((_, i) => !usedDays.includes(i));
+      if (day === -1) day = planItems.length % 7;
+      planItems.push({ dayIndex: day, mealName: name });
+    }
+  } else {
+    planItems = planItems.filter(p => p.mealName !== name);
+  }
+  renderPlan();
+}
+
+function renderPlan() {
+  const empty = document.getElementById('plan-empty');
+  const daysEl = document.getElementById('plan-days');
+
+  if (!planItems.length) {
+    empty.style.display = '';
+    daysEl.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  daysEl.style.display = '';
+
+  // Group by day
+  const byDay = {};
+  planItems.forEach((p, idx) => {
+    if (!byDay[p.dayIndex]) byDay[p.dayIndex] = [];
+    byDay[p.dayIndex].push({ ...p, idx });
+  });
+
+  const dayKeys = Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+
+  daysEl.innerHTML = dayKeys.map(d => {
+    const slots = byDay[d];
+    const slotsHtml = slots.map(({ mealName, idx }) => `
+      <div class="plan-day-slot" draggable="true" data-idx="${idx}"
+           ondragstart="dragStart(event,${idx})"
+           ondragover="dragOver(event)"
+           ondrop="dropOn(event,${idx})"
+           ondragend="dragEnd(event)">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <span class="plan-slot-name">${escH(mealName)}</span>
+        <select class="btn" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
+          ${DAYS.map((day,di)=>`<option value="${di}" ${di===d?'selected':''}>${day}</option>`).join('')}
+        </select>
+        <button class="plan-slot-remove" onclick="removePlanItem(${idx})" title="Remove">✕</button>
+      </div>`).join('');
+    return `<div class="plan-day" data-day="${d}">
+      <div class="plan-day-label">${DAYS[d]}</div>
+      <div class="plan-day-meal">${slotsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function removePlanItem(idx) {
+  const name = planItems[idx]?.mealName;
+  planItems.splice(idx, 1);
+  renderPlan();
+  renderList(); // uncheck the checkbox
+}
+
+function changeDay(idx, newDay) {
+  if (planItems[idx]) planItems[idx].dayIndex = parseInt(newDay);
+  renderPlan();
+}
+
+function clearPlan() {
+  if (!planItems.length) return;
+  if (!confirm('Clear this week\'s meal plan?')) return;
+  planItems = [];
+  renderPlan();
+  renderList();
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+function dragStart(e, idx) {
+  dragSrc = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+function dropOn(e, targetIdx) {
+  e.preventDefault();
+  if (dragSrc === null || dragSrc === targetIdx) return;
+  const item = planItems.splice(dragSrc, 1)[0];
+  planItems.splice(targetIdx, 0, item);
+  dragSrc = null;
+  renderPlan();
+}
+function dragEnd(e) {
+  dragSrc = null;
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+}
+
+// ── Publish & Print ───────────────────────────────────────────────────────────
+async function publishPlan() {
+  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
+
+  const now = new Date();
+  const label = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('print-date').textContent = 'Week of ' + label;
+
+  // Save to DB
+  try {
+    await api('POST', 'meal_plans', {
+      created_at: now.toISOString(),
+      plan: planItems
+    });
+  } catch(e) {
+    // meal_plans table may not exist yet — still print
+    console.warn('Could not save plan:', e.message);
+  }
+
+  window.print();
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function openHistoryModal() {
+  document.getElementById('dropdown').classList.add('hidden');
+  document.getElementById('history-list').innerHTML = '<div style="font-size:13px;color:#aaa;padding:8px 0;">Loading…</div>';
+  document.getElementById('history-modal').classList.add('show');
+  try {
+    const plans = await api('GET', 'meal_plans?select=*&order=created_at.desc');
+    renderHistoryList(plans || []);
+  } catch(e) {
+    document.getElementById('history-list').innerHTML =
+      '<div style="font-size:13px;color:#c04040;">Could not load history. Make sure the meal_plans table exists.</div>';
+  }
+}
+function closeHistoryModal() { document.getElementById('history-modal').classList.remove('show'); }
+
+function renderHistoryList(plans) {
+  const el = document.getElementById('history-list');
+  if (!plans.length) { el.innerHTML = '<div style="font-size:13px;color:#aaa;padding:8px 0;">No saved plans yet.</div>'; return; }
+  el.innerHTML = plans.map((p, i) => {
+    const d = new Date(p.created_at);
+    const label = d.toLocaleDateString('en-US', { weekday:'short', year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const items = p.plan || [];
+    const byDay = {};
+    items.forEach(item => {
+      if (!byDay[item.dayIndex]) byDay[item.dayIndex] = [];
+      byDay[item.dayIndex].push(item.mealName);
+    });
+    const dayKeys = Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+    const bodyHtml = dayKeys.map(d =>
+      byDay[d].map(name => `<div class="history-day-row"><span class="history-day-label">${DAYS[d]}</span><span>${escH(name)}</span></div>`).join('')
+    ).join('');
+    return `<div class="history-item">
+      <div class="history-header" onclick="toggleHistory(${i})">
+        <span class="history-date">${label}</span>
+        <span class="history-count">${items.length} meal${items.length!==1?'s':''}</span>
+      </div>
+      <div class="history-body" id="hbody-${i}">${bodyHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleHistory(i) {
+  const el = document.getElementById('hbody-' + i);
+  if (el) el.classList.toggle('open');
+}
+
+// ── Tag editor ────────────────────────────────────────────────────────────────
 function renderEditor(m) {
   const cur = m.season || [];
   const safeId = m.id.replace(/-/g,'_');
-
-  let tagsHtml = '';
-  if (allTags.length === 0) {
-    tagsHtml = '<span class="editor-no-tags">No tags exist yet — create one below.</span>';
-  } else {
-    tagsHtml = allTags.map(t => {
-      const on = cur.includes(t);
-      // Use data attribute to avoid quoting issues
-      return `<span class="editor-tag ${on?'on':''}" data-meal="${m.id}" data-tag="${escAttr(t)}" onclick="handleTagClick(this)">${tagLabel(t)}</span>`;
-    }).join('');
-  }
-
+  let tagsHtml = allTags.length === 0
+    ? '<span class="editor-no-tags">No tags yet — create one below.</span>'
+    : allTags.map(t =>
+        `<span class="editor-tag ${cur.includes(t)?'on':''}" data-meal="${m.id}" data-tag="${escAttr(t)}" onclick="handleTagClick(this)">${tagLabel(t)}</span>`
+      ).join('');
   return `<div class="editor-label">Tags — click to toggle</div>
-    <div class="editor-tags" id="etags-${safeId}">${tagsHtml}</div>
+    <div class="editor-tags">${tagsHtml}</div>
     <div class="editor-add-row">
       <input type="text" id="newtag-${safeId}" placeholder="Create &amp; add a new tag…" onkeydown="if(event.key==='Enter')quickAddTag('${m.id}','${safeId}')" />
       <button onclick="quickAddTag('${m.id}','${safeId}')">+ Add</button>
     </div>`;
 }
 
-// Use data attributes instead of inline JS strings to avoid quoting bugs
-function handleTagClick(el) {
-  const mealId = el.dataset.meal;
-  const tag = el.dataset.tag;
-  toggleMealTag(mealId, tag);
-}
+function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
 
 function toggleEditor(id) {
   openEditorId = openEditorId === id ? null : id;
@@ -343,79 +611,66 @@ async function toggleMealTag(id, tag) {
   try {
     await api('PATCH', `meals?id=eq.${id}`, { season: next });
     meal.season = next;
-    // Re-render editor in place
-    const safeId = id.replace(/-/g,'_');
     const ed = document.getElementById('editor-' + id);
     if (ed) ed.innerHTML = renderEditor(meal);
-    // Update badges in main row
     const tagsEl = document.querySelector(`#row-${id} .meal-tags`);
     const newBadges = next.map(t => `<span class="badge">${tagLabel(t)}</span>`).join('');
-    if (tagsEl) {
-      if (next.length) tagsEl.innerHTML = newBadges;
-      else tagsEl.remove();
-    } else if (next.length) {
-      document.querySelector(`#row-${id} .meal-name`).insertAdjacentHTML('afterend', `<div class="meal-tags">${newBadges}</div>`);
-    }
+    if (tagsEl) { if (next.length) tagsEl.innerHTML = newBadges; else tagsEl.remove(); }
+    else if (next.length) document.querySelector(`#row-${id} .meal-name`).insertAdjacentHTML('afterend', `<div class="meal-tags">${newBadges}</div>`);
   } catch(e) { setStatus('Error saving tag: ' + e.message, true); }
 }
 
 async function quickAddTag(mealId, safeId) {
-  const input = document.getElementById('newtag-' + safeId);
-  if (!input) return;
+  const input = document.getElementById('newtag-' + safeId); if (!input) return;
   const tag = input.value.trim(); if (!tag) return;
-  if (!allTags.includes(tag)) {
-    allTags.push(tag);
-    await saveTags();
-    buildFilterBar();
-    buildAddPills();
-  }
+  if (!allTags.includes(tag)) { allTags.push(tag); await saveTags(); buildFilterBar(); buildAddPills(); }
   await toggleMealTag(mealId, tag);
   input.value = '';
 }
 
+// ── Add / adjust / delete meal ────────────────────────────────────────────────
 function toggleAddTag(tag) {
-  selectedAddTags = selectedAddTags.includes(tag)
-    ? selectedAddTags.filter(t => t !== tag)
-    : [...selectedAddTags, tag];
+  selectedAddTags = selectedAddTags.includes(tag) ? selectedAddTags.filter(t=>t!==tag) : [...selectedAddTags, tag];
   buildAddPills();
 }
 
 async function addMeal() {
   const nameEl = document.getElementById('new-name');
   const name = nameEl.value.trim(); if (!name) { nameEl.focus(); return; }
-  const btn = document.getElementById('btn-add'); btn.disabled = true; btn.textContent = 'Adding…';
+  const btn = document.getElementById('btn-add'); btn.disabled=true; btn.textContent='Adding…';
   try {
-    if (meals.find(m => m.name.toLowerCase() === name.toLowerCase())) {
-      setStatus(`"${name}" already exists.`); btn.disabled = false; btn.textContent = 'Add'; return;
+    if (meals.find(m => m.name.toLowerCase()===name.toLowerCase())) {
+      setStatus(`"${name}" already exists.`); btn.disabled=false; btn.textContent='Add'; return;
     }
-    const result = await api('POST', 'meals', { name, season: [...selectedAddTags], count: 1 });
+    const result = await api('POST', 'meals', { name, season:[...selectedAddTags], count:1 });
     meals.unshift(result[0]);
-    meals.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
-    nameEl.value = ''; selectedAddTags = []; buildAddPills(); renderList();
+    meals.sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+    nameEl.value=''; selectedAddTags=[]; buildAddPills(); renderList();
     setStatus(`"${name}" added!`);
-  } catch(e) { setStatus('Error: ' + e.message, true); }
-  btn.disabled = false; btn.textContent = 'Add';
+  } catch(e) { setStatus('Error: '+e.message, true); }
+  btn.disabled=false; btn.textContent='Add';
 }
 
 async function adjustCount(id, delta) {
-  const meal = meals.find(m => m.id === id); if (!meal) return;
-  const newCount = Math.max(0, meal.count + delta);
+  const meal = meals.find(m=>m.id===id); if (!meal) return;
+  const newCount = Math.max(0, meal.count+delta);
   try {
-    await api('PATCH', `meals?id=eq.${id}`, { count: newCount });
-    meal.count = newCount;
-    meals.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
+    await api('PATCH', `meals?id=eq.${id}`, { count:newCount });
+    meal.count=newCount;
+    meals.sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
     renderList();
-  } catch(e) { setStatus('Error: ' + e.message, true); }
+  } catch(e) { setStatus('Error: '+e.message, true); }
 }
 
 async function deleteMeal(id) {
-  const meal = meals.find(m => m.id === id);
+  const meal = meals.find(m=>m.id===id);
   if (!confirm(`Delete "${meal.name}"?`)) return;
   try {
     await api('DELETE', `meals?id=eq.${id}`);
-    meals = meals.filter(m => m.id !== id);
-    renderList();
-  } catch(e) { setStatus('Error: ' + e.message, true); }
+    meals=meals.filter(m=>m.id!==id);
+    planItems=planItems.filter(p=>p.mealName!==meal.name);
+    renderPlan(); renderList();
+  } catch(e) { setStatus('Error: '+e.message, true); }
 }
 
 // ── Options menu ──────────────────────────────────────────────────────────────
@@ -424,7 +679,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.menu-wrap')) document.getElementById('dropdown').classList.add('hidden');
 });
 function toggleCounts() {
-  showCounts = !showCounts;
+  showCounts=!showCounts;
   document.getElementById('counts-toggle').classList.toggle('on', showCounts);
   renderList();
 }
@@ -437,22 +692,16 @@ function openTagModal() {
 }
 function closeTagModal() { document.getElementById('tag-modal').classList.remove('show'); }
 
-function tagMealCount(tag) {
-  return meals.filter(m => (m.season || []).includes(tag)).length;
-}
+function tagMealCount(tag) { return meals.filter(m=>(m.season||[]).includes(tag)).length; }
 
 function renderTagModal() {
   const list = document.getElementById('tag-manage-list');
-  if (!allTags.length) {
-    list.innerHTML = '<div style="font-size:13px;color:#aaa;padding:4px 0;">No tags yet — add one below.</div>';
-    return;
-  }
+  if (!allTags.length) { list.innerHTML='<div style="font-size:13px;color:#aaa;">No tags yet.</div>'; return; }
   list.innerHTML = allTags.map(t => {
     const count = tagMealCount(t);
-    const countLabel = count === 1 ? '1 meal' : `${count} meals`;
     return `<div class="tag-manage-row">
       <span class="tag-manage-name">${escH(tagLabel(t))}</span>
-      <span class="tag-manage-count">${countLabel}</span>
+      <span class="tag-manage-count">${count===1?'1 meal':count+' meals'}</span>
       <button class="tag-manage-del" data-tag="${escAttr(t)}" onclick="confirmDeleteTag(this.dataset.tag)">Delete</button>
     </div>`;
   }).join('');
@@ -460,88 +709,52 @@ function renderTagModal() {
 
 function confirmDeleteTag(tag) {
   const count = tagMealCount(tag);
-  const mealWord = count === 1 ? 'meal' : 'meals';
   const msg = count > 0
-    ? `Delete the tag "${tag}"?\n\nThis will remove it from ${count} ${mealWord}.`
-    : `Delete the tag "${tag}"?\n\nNo meals are currently using this tag.`;
+    ? `Delete the tag "${tag}"?\n\nThis will remove it from ${count} ${count===1?'meal':'meals'}.`
+    : `Delete the tag "${tag}"?\n\nNo meals are currently using it.`;
   if (confirm(msg)) deleteGlobalTag(tag);
 }
 
 async function deleteGlobalTag(tag) {
-  allTags = allTags.filter(t => t !== tag);
+  allTags=allTags.filter(t=>t!==tag);
   for (const meal of meals) {
-    if ((meal.season || []).includes(tag)) {
-      meal.season = meal.season.filter(t => t !== tag);
-      await api('PATCH', `meals?id=eq.${meal.id}`, { season: meal.season });
+    if ((meal.season||[]).includes(tag)) {
+      meal.season=meal.season.filter(t=>t!==tag);
+      await api('PATCH', `meals?id=eq.${meal.id}`, { season:meal.season });
     }
   }
-  if (currentFilter === tag) currentFilter = 'all';
+  if (currentFilter===tag) currentFilter='all';
   await saveTags();
-  buildFilterBar();
-  buildAddPills();
-  renderTagModal();
-  renderList();
+  buildFilterBar(); buildAddPills(); renderTagModal(); renderList();
 }
 
 async function addGlobalTag() {
-  const input = document.getElementById('new-global-tag');
-  const tag = input.value.trim();
-  if (!tag || allTags.includes(tag)) { input.focus(); return; }
-  allTags.push(tag);
-  await saveTags();
-  input.value = '';
-  buildFilterBar();
-  buildAddPills();
-  renderTagModal();
+  const input=document.getElementById('new-global-tag');
+  const tag=input.value.trim();
+  if (!tag||allTags.includes(tag)) { input.focus(); return; }
+  allTags.push(tag); await saveTags(); input.value='';
+  buildFilterBar(); buildAddPills(); renderTagModal();
 }
 
 async function saveTags() {
   if (!tagsRowId) {
-    try {
-      const r = await api('POST', 'tags', { names: allTags });
-      if (r && r[0]) tagsRowId = r[0].id;
-    } catch(e) { console.warn('Could not save tags:', e.message); }
+    try { const r=await api('POST','tags',{names:allTags}); if(r&&r[0]) tagsRowId=r[0].id; } catch(e) {}
     return;
   }
-  try {
-    await api('PATCH', `tags?id=eq.${tagsRowId}`, { names: allTags });
-  } catch(e) { console.warn('Could not save tags:', e.message); }
+  try { await api('PATCH',`tags?id=eq.${tagsRowId}`,{names:allTags}); } catch(e) {}
 }
 
-// Event delegation for filter bar — handles dynamically rebuilt buttons
-document.getElementById('filter-bar').addEventListener('click', e => {
-  const btn = e.target.closest('.filter-btn');
-  if (!btn) return;
-  currentFilter = btn.dataset.filter;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderList();
-});
-
-function setFilter(f) {
-  currentFilter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.filter === f);
-  });
-  renderList();
-}
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function setStatus(msg, isError) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = 'status-bar' + (isError ? ' error' : '');
-  if (!isError) setTimeout(() => el.textContent = '', 4000);
+  const el=document.getElementById('status');
+  el.textContent=msg; el.className='status-bar'+(isError?' error':'');
+  if (!isError) setTimeout(()=>el.textContent='',4000);
 }
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-function escH(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function escAttr(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-document.getElementById('new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMeal(); });
-document.getElementById('new-global-tag').addEventListener('keydown', e => { if (e.key === 'Enter') addGlobalTag(); });
+document.getElementById('new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addMeal(); });
+document.getElementById('new-global-tag').addEventListener('keydown', e=>{ if(e.key==='Enter') addGlobalTag(); });
 
 boot();
 </script>
