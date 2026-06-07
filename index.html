@@ -238,12 +238,17 @@ function tagLabel(t) {
 }
 
 function buildFilterBar() {
-  document.getElementById('filter-bar').innerHTML =
-    `<button class="filter-btn ${currentFilter==='all'?'active':''}" onclick="setFilter('all',this)">All</button>` +
+  const bar = document.getElementById('filter-bar');
+  bar.innerHTML =
+    `<button class="filter-btn ${currentFilter==='all'?'active':''}" data-filter="all">All</button>` +
     allTags.map(t =>
-      `<button class="filter-btn ${currentFilter===t?'active':''}" onclick="setFilter(${JSON.stringify(t)},this)">${tagLabel(t)}</button>`
+      `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
     ).join('') +
-    `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" oninput="renderList()" /></div>`;
+    `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>`;
+
+  // Re-attach search listener each time bar is rebuilt
+  const searchEl = document.getElementById('search');
+  if (searchEl) searchEl.addEventListener('input', renderList);
 }
 
 function buildAddPills() {
@@ -501,10 +506,21 @@ async function saveTags() {
   } catch(e) { console.warn('Could not save tags:', e.message); }
 }
 
-function setFilter(f, btn) {
-  currentFilter = f;
+// Event delegation for filter bar — handles dynamically rebuilt buttons
+document.getElementById('filter-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  currentFilter = btn.dataset.filter;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  renderList();
+});
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === f);
+  });
   renderList();
 }
 
