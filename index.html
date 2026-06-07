@@ -73,16 +73,17 @@ header h1 { font-size: 19px; font-weight: 500; }
 .meal-editor { border-top: 1px solid #f0efe8; padding: 12px 14px 14px; background: #fafaf9; display: none; }
 .meal-editor.open { display: block; }
 .editor-label { font-size: 11px; font-weight: 500; color: #aaa; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.editor-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-.editor-tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d0cfc8; background: #fff; cursor: pointer; color: #555; transition: all .15s; }
+.editor-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; min-height: 32px; }
+.editor-tag { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid #d0cfc8; background: #fff; cursor: pointer; color: #555; transition: all .15s; user-select: none; }
+.editor-tag:hover { border-color: #aaa; background: #f5f4f0; }
 .editor-tag.on { background: #1a1a18; border-color: #1a1a18; color: #fff; }
 .editor-add-row { display: flex; gap: 6px; margin-top: 4px; }
-.editor-add-row input { padding: 5px 10px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; width: 160px; }
+.editor-add-row input { padding: 5px 10px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; width: 180px; }
 .editor-add-row input:focus { border-color: #378ADD; }
 .editor-add-row button { padding: 5px 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: #fff; font-size: 13px; cursor: pointer; }
 .editor-add-row button:hover { background: #f0efe8; }
+.editor-no-tags { font-size: 12px; color: #bbb; padding: 4px 0; }
 
-/* Modal */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; align-items: center; justify-content: center; }
 .modal-overlay.show { display: flex; }
 .modal { background: #fff; border-radius: 14px; padding: 24px; width: 400px; max-width: 95vw; max-height: 80vh; display: flex; flex-direction: column; }
@@ -91,7 +92,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .tag-manage-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .tag-manage-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #e8e7e0; border-radius: 8px; flex-shrink: 0; }
 .tag-manage-name { flex: 1; font-size: 13px; font-weight: 500; }
-.tag-manage-count { font-size: 12px; color: #aaa; }
+.tag-manage-count { font-size: 12px; color: #aaa; white-space: nowrap; }
 .tag-manage-del { padding: 4px 12px; font-size: 12px; border: 1px solid #f0cfc8; border-radius: 6px; background: transparent; color: #c04040; cursor: pointer; white-space: nowrap; }
 .tag-manage-del:hover { background: #fcefef; }
 .modal-add { display: flex; gap: 8px; flex-shrink: 0; }
@@ -174,7 +175,8 @@ const H = {
   'Prefer': 'return=representation'
 };
 
-let meals = [], allTags = [], currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [];
+let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
+let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [];
 
 async function api(method, path, body) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -189,17 +191,44 @@ async function api(method, path, body) {
 async function boot() {
   document.getElementById('loader').classList.add('show');
   try {
-    let tagRows = await api('GET', 'tags?select=*');
-    if (!tagRows || !tagRows.length) {
-      const r = await api('POST', 'tags', { names: [...DEFAULT_TAGS] });
-      tagRows = [r[0]];
+    // Load tags — fall back to defaults if table missing or empty
+    try {
+      let tagRows = await api('GET', 'tags?select=*');
+      if (tagRows && tagRows.length) {
+        tagsRowId = tagRows[0].id;
+        // Merge DB tags with any tags found on meals (safety net)
+        allTags = tagRows[0].names && tagRows[0].names.length
+          ? tagRows[0].names
+          : [...DEFAULT_TAGS];
+      } else {
+        // Table exists but empty — seed it
+        const r = await api('POST', 'tags', { names: [...DEFAULT_TAGS] });
+        if (r && r[0]) { tagsRowId = r[0].id; allTags = [...DEFAULT_TAGS]; }
+      }
+    } catch(tagErr) {
+      // tags table doesn't exist yet — use defaults and show hint
+      console.warn('Tags table not found, using defaults:', tagErr.message);
+      allTags = [...DEFAULT_TAGS];
+      setStatus('Note: run the tags table SQL in Supabase to enable tag management.', false);
     }
-    allTags = tagRows[0].names || [];
+
     meals = await api('GET', 'meals?select=*&order=count.desc,name.asc');
+
+    // Collect any tags that exist on meals but aren't in allTags yet
+    const mealTagSet = new Set(allTags);
+    for (const meal of meals) {
+      for (const t of (meal.season || [])) {
+        if (!mealTagSet.has(t)) { allTags.push(t); mealTagSet.add(t); }
+      }
+    }
+
     buildFilterBar();
     buildAddPills();
     renderList();
-  } catch(e) { setStatus('Error loading: ' + e.message, true); }
+  } catch(e) {
+    setStatus('Error loading: ' + e.message, true);
+    console.error(e);
+  }
   document.getElementById('loader').classList.remove('show');
 }
 
@@ -267,15 +296,32 @@ function renderList() {
 
 function renderEditor(m) {
   const cur = m.season || [];
-  const tagsHtml = allTags.map(t =>
-    `<span class="editor-tag ${cur.includes(t)?'on':''}" onclick="toggleMealTag('${m.id}',${JSON.stringify(t)})">${tagLabel(t)}</span>`
-  ).join('');
+  const safeId = m.id.replace(/-/g,'_');
+
+  let tagsHtml = '';
+  if (allTags.length === 0) {
+    tagsHtml = '<span class="editor-no-tags">No tags exist yet — create one below.</span>';
+  } else {
+    tagsHtml = allTags.map(t => {
+      const on = cur.includes(t);
+      // Use data attribute to avoid quoting issues
+      return `<span class="editor-tag ${on?'on':''}" data-meal="${m.id}" data-tag="${escAttr(t)}" onclick="handleTagClick(this)">${tagLabel(t)}</span>`;
+    }).join('');
+  }
+
   return `<div class="editor-label">Tags — click to toggle</div>
-    <div class="editor-tags">${tagsHtml}</div>
+    <div class="editor-tags" id="etags-${safeId}">${tagsHtml}</div>
     <div class="editor-add-row">
-      <input type="text" id="newtag-${m.id}" placeholder="Create &amp; add a new tag…" onkeydown="if(event.key==='Enter')quickAddTag('${m.id}')" />
-      <button onclick="quickAddTag('${m.id}')">+ Add</button>
+      <input type="text" id="newtag-${safeId}" placeholder="Create &amp; add a new tag…" onkeydown="if(event.key==='Enter')quickAddTag('${m.id}','${safeId}')" />
+      <button onclick="quickAddTag('${m.id}','${safeId}')">+ Add</button>
     </div>`;
+}
+
+// Use data attributes instead of inline JS strings to avoid quoting bugs
+function handleTagClick(el) {
+  const mealId = el.dataset.meal;
+  const tag = el.dataset.tag;
+  toggleMealTag(mealId, tag);
 }
 
 function toggleEditor(id) {
@@ -290,20 +336,26 @@ async function toggleMealTag(id, tag) {
   try {
     await api('PATCH', `meals?id=eq.${id}`, { season: next });
     meal.season = next;
+    // Re-render editor in place
+    const safeId = id.replace(/-/g,'_');
     const ed = document.getElementById('editor-' + id);
     if (ed) ed.innerHTML = renderEditor(meal);
+    // Update badges in main row
     const tagsEl = document.querySelector(`#row-${id} .meal-tags`);
     const newBadges = next.map(t => `<span class="badge">${tagLabel(t)}</span>`).join('');
-    if (tagsEl) { tagsEl.innerHTML = newBadges; if (!next.length) tagsEl.remove(); }
-    else if (next.length) {
+    if (tagsEl) {
+      if (next.length) tagsEl.innerHTML = newBadges;
+      else tagsEl.remove();
+    } else if (next.length) {
       document.querySelector(`#row-${id} .meal-name`).insertAdjacentHTML('afterend', `<div class="meal-tags">${newBadges}</div>`);
     }
-  } catch(e) { setStatus('Error: ' + e.message, true); }
+  } catch(e) { setStatus('Error saving tag: ' + e.message, true); }
 }
 
-async function quickAddTag(mealId) {
-  const input = document.getElementById('newtag-' + mealId);
-  const tag = (input.value || '').trim(); if (!tag) return;
+async function quickAddTag(mealId, safeId) {
+  const input = document.getElementById('newtag-' + safeId);
+  if (!input) return;
+  const tag = input.value.trim(); if (!tag) return;
   if (!allTags.includes(tag)) {
     allTags.push(tag);
     await saveTags();
@@ -364,7 +416,6 @@ function toggleMenu() { document.getElementById('dropdown').classList.toggle('hi
 document.addEventListener('click', e => {
   if (!e.target.closest('.menu-wrap')) document.getElementById('dropdown').classList.add('hidden');
 });
-
 function toggleCounts() {
   showCounts = !showCounts;
   document.getElementById('counts-toggle').classList.toggle('on', showCounts);
@@ -386,7 +437,7 @@ function tagMealCount(tag) {
 function renderTagModal() {
   const list = document.getElementById('tag-manage-list');
   if (!allTags.length) {
-    list.innerHTML = '<div style="font-size:13px;color:#aaa;padding:4px 0;">No tags yet.</div>';
+    list.innerHTML = '<div style="font-size:13px;color:#aaa;padding:4px 0;">No tags yet — add one below.</div>';
     return;
   }
   list.innerHTML = allTags.map(t => {
@@ -395,7 +446,7 @@ function renderTagModal() {
     return `<div class="tag-manage-row">
       <span class="tag-manage-name">${escH(tagLabel(t))}</span>
       <span class="tag-manage-count">${countLabel}</span>
-      <button class="tag-manage-del" onclick="confirmDeleteTag(${JSON.stringify(t)})">Delete</button>
+      <button class="tag-manage-del" data-tag="${escAttr(t)}" onclick="confirmDeleteTag(this.dataset.tag)">Delete</button>
     </div>`;
   }).join('');
 }
@@ -404,10 +455,9 @@ function confirmDeleteTag(tag) {
   const count = tagMealCount(tag);
   const mealWord = count === 1 ? 'meal' : 'meals';
   const msg = count > 0
-    ? `Delete the tag "${tag}"?\n\nThis tag is used by ${count} ${mealWord}. It will be removed from all of them.`
-    : `Delete the tag "${tag}"?\n\nThis tag isn't used by any meals.`;
-  if (!confirm(msg)) return;
-  deleteGlobalTag(tag);
+    ? `Delete the tag "${tag}"?\n\nThis will remove it from ${count} ${mealWord}.`
+    : `Delete the tag "${tag}"?\n\nNo meals are currently using this tag.`;
+  if (confirm(msg)) deleteGlobalTag(tag);
 }
 
 async function deleteGlobalTag(tag) {
@@ -428,7 +478,7 @@ async function deleteGlobalTag(tag) {
 
 async function addGlobalTag() {
   const input = document.getElementById('new-global-tag');
-  const tag = (input.value || '').trim();
+  const tag = input.value.trim();
   if (!tag || allTags.includes(tag)) { input.focus(); return; }
   allTags.push(tag);
   await saveTags();
@@ -439,8 +489,16 @@ async function addGlobalTag() {
 }
 
 async function saveTags() {
-  const rows = await api('GET', 'tags?select=id');
-  if (rows && rows.length) await api('PATCH', `tags?id=eq.${rows[0].id}`, { names: allTags });
+  if (!tagsRowId) {
+    try {
+      const r = await api('POST', 'tags', { names: allTags });
+      if (r && r[0]) tagsRowId = r[0].id;
+    } catch(e) { console.warn('Could not save tags:', e.message); }
+    return;
+  }
+  try {
+    await api('PATCH', `tags?id=eq.${tagsRowId}`, { names: allTags });
+  } catch(e) { console.warn('Could not save tags:', e.message); }
 }
 
 function setFilter(f, btn) {
@@ -454,11 +512,14 @@ function setStatus(msg, isError) {
   const el = document.getElementById('status');
   el.textContent = msg;
   el.className = 'status-bar' + (isError ? ' error' : '');
-  if (!isError) setTimeout(() => el.textContent = '', 3000);
+  if (!isError) setTimeout(() => el.textContent = '', 4000);
 }
 
 function escH(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 document.getElementById('new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMeal(); });
