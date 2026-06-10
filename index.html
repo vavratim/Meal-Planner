@@ -117,6 +117,44 @@ header h1 { font-size: 19px; font-weight: 500; }
 .editor-add-row button { padding: 5px 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: #fff; font-size: 13px; cursor: pointer; }
 .editor-add-row button:hover { background: #f0efe8; }
 .editor-no-tags { font-size: 12px; color: #bbb; padding: 4px 0; }
+.editor-divider { border: none; border-top: 1px solid #e8e7e0; margin: 14px 0 12px; }
+.notes-textarea { width: 100%; padding: 8px 10px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff; outline: none; resize: vertical; min-height: 80px; color: #1a1a18; line-height: 1.5; }
+.notes-textarea:focus { border-color: #378ADD; }
+.notes-saving { font-size: 11px; color: #aaa; margin-top: 4px; height: 16px; }
+
+/* ── Ingredients ── */
+.ing-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.ing-table th { font-size: 11px; font-weight: 500; color: #aaa; text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; text-align: left; border-bottom: 1px solid #e8e7e0; }
+.ing-table td { padding: 5px 6px; font-size: 13px; vertical-align: middle; border-bottom: 1px solid #f0efe8; }
+.ing-table tr:last-child td { border-bottom: none; }
+.ing-input { width: 100%; padding: 4px 6px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; }
+.ing-input:focus { border-color: #378ADD; }
+.ing-input.qty { width: 70px; }
+.ing-input.unit { width: 80px; }
+.ing-btn-del { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.ing-btn-del:hover { background: #fcefef; }
+.ing-add-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.ing-add-row input { padding: 5px 8px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; }
+.ing-add-row input:focus { border-color: #378ADD; }
+.ing-add-row .f-qty { width: 70px; }
+.ing-add-row .f-unit { width: 80px; }
+.ing-add-row .f-name { flex: 1; min-width: 120px; }
+.ing-add-row button { padding: 5px 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ing-add-row button:hover { background: #f0efe8; }
+.ing-empty { font-size: 12px; color: #bbb; padding: 6px 0; }
+
+/* ── Grocery list print page ── */
+.grocery-page { display: none; }
+@media print {
+  .grocery-page { display: block; page-break-before: always; padding: 24px; }
+  .grocery-page h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .grocery-page p { font-size: 12px; color: #666; margin-bottom: 20px; }
+  .grocery-section { margin-bottom: 16px; break-inside: avoid; }
+  .grocery-section h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 8px; }
+  .grocery-item { display: flex; gap: 12px; font-size: 13px; padding: 3px 0; }
+  .grocery-qty { color: #555; min-width: 80px; }
+  .grocery-name { flex: 1; }
+}
 
 /* ── Modals ── */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; align-items: center; justify-content: center; }
@@ -277,6 +315,13 @@ header h1 { font-size: 19px; font-weight: 500; }
   <div class="controls" id="filter-bar"></div>
   <div class="meal-grid" id="meal-grid"></div>
   <div class="status-bar" id="status"></div>
+</div>
+
+<!-- Grocery list — only visible when printing -->
+<div class="grocery-page" id="grocery-page">
+  <h2>🛒 Grocery List</h2>
+  <p id="grocery-date"></p>
+  <div id="grocery-content"></div>
 </div>
 
 <script>
@@ -553,19 +598,57 @@ async function publishPlan() {
   const now = new Date();
   const label = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   document.getElementById('print-date').textContent = 'Week of ' + label;
+  document.getElementById('grocery-date').textContent = 'Week of ' + label;
+
+  // Build grocery list from planned meals
+  await buildGroceryList();
 
   // Save to DB
   try {
-    await api('POST', 'meal_plans', {
-      created_at: now.toISOString(),
-      plan: planItems
-    });
-  } catch(e) {
-    // meal_plans table may not exist yet — still print
-    console.warn('Could not save plan:', e.message);
-  }
+    await api('POST', 'meal_plans', { created_at: now.toISOString(), plan: planItems });
+  } catch(e) { console.warn('Could not save plan:', e.message); }
 
   window.print();
+}
+
+async function buildGroceryList() {
+  // Collect all ingredients for planned meals
+  const mealNames = [...new Set(planItems.map(p => p.mealName))];
+  const allIng = [];
+
+  for (const name of mealNames) {
+    const meal = meals.find(m => m.name === name);
+    if (!meal) continue;
+    if (!meal._ingredients) await loadIngredients(meal.id);
+    for (const ing of (meal._ingredients || [])) {
+      allIng.push({ ...ing, mealName: name });
+    }
+  }
+
+  if (!allIng.length) {
+    document.getElementById('grocery-content').innerHTML =
+      '<p style="font-size:13px;color:#888;">No ingredients added to any of this week's meals yet.</p>';
+    return;
+  }
+
+  // Group by meal name
+  const byMeal = {};
+  for (const ing of allIng) {
+    if (!byMeal[ing.mealName]) byMeal[ing.mealName] = [];
+    byMeal[ing.mealName].push(ing);
+  }
+
+  const html = Object.entries(byMeal).map(([mealName, ings]) => {
+    const rows = ings.map(ing => {
+      const qty  = ing.quantity != null ? ing.quantity : '';
+      const unit = ing.unit || '';
+      const qtyStr = [qty, unit].filter(Boolean).join(' ');
+      return `<div class="grocery-item"><span class="grocery-qty">${escH(qtyStr)}</span><span class="grocery-name">${escH(ing.name)}</span></div>`;
+    }).join('');
+    return `<div class="grocery-section"><h3>${escH(mealName)}</h3>${rows}</div>`;
+  }).join('');
+
+  document.getElementById('grocery-content').innerHTML = html;
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -623,19 +706,123 @@ function renderEditor(m) {
     : allTags.map(t =>
         `<span class="editor-tag ${cur.includes(t)?'on':''}" data-meal="${m.id}" data-tag="${escAttr(t)}" onclick="handleTagClick(this)">${tagLabel(t)}</span>`
       ).join('');
+
+  const ings = m._ingredients || [];
+  const ingRows = ings.length === 0
+    ? `<div class="ing-empty">No ingredients yet — add one below.</div>`
+    : `<table class="ing-table">
+        <thead><tr><th>Qty</th><th>Unit</th><th>Ingredient</th><th></th></tr></thead>
+        <tbody>${ings.map((ing, idx) => `
+          <tr>
+            <td><input class="ing-input qty" value="${escH(ing.quantity!=null?String(ing.quantity):'')}" onblur="updateIngredient('${m.id}','${ing.id}','quantity',this.value)" /></td>
+            <td><input class="ing-input unit" value="${escH(ing.unit||'')}" onblur="updateIngredient('${m.id}','${ing.id}','unit',this.value)" /></td>
+            <td><input class="ing-input" value="${escH(ing.name)}" onblur="updateIngredient('${m.id}','${ing.id}','name',this.value)" /></td>
+            <td><button class="ing-btn-del" onclick="deleteIngredient('${m.id}','${ing.id}')">✕</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+
   return `<div class="editor-label">Tags — click to toggle</div>
     <div class="editor-tags">${tagsHtml}</div>
     <div class="editor-add-row">
       <input type="text" id="newtag-${safeId}" placeholder="Create &amp; add a new tag…" onkeydown="if(event.key==='Enter')quickAddTag('${m.id}','${safeId}')" />
       <button onclick="quickAddTag('${m.id}','${safeId}')">+ Add</button>
+    </div>
+    <hr class="editor-divider" />
+    <div class="editor-label">Ingredients</div>
+    <div id="ing-list-${safeId}">${ingRows}</div>
+    <div class="ing-add-row">
+      <input class="f-qty" type="text" id="ing-qty-${safeId}" placeholder="Qty" />
+      <input class="f-unit" type="text" id="ing-unit-${safeId}" placeholder="Unit" />
+      <input class="f-name" type="text" id="ing-name-${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('${m.id}','${safeId}')" />
+      <button onclick="addIngredient('${m.id}','${safeId}')">+ Add</button>
     </div>`;
+}
+
+function renderIngList(m) {
+  const safeId = m.id.replace(/-/g,'_');
+  const el = document.getElementById('ing-list-' + safeId);
+  if (!el) return;
+  const ings = m._ingredients || [];
+  if (!ings.length) { el.innerHTML = '<div class="ing-empty">No ingredients yet — add one below.</div>'; return; }
+  el.innerHTML = `<table class="ing-table">
+    <thead><tr><th>Qty</th><th>Unit</th><th>Ingredient</th><th></th></tr></thead>
+    <tbody>${ings.map(ing => `
+      <tr>
+        <td><input class="ing-input qty" value="${escH(ing.quantity!=null?String(ing.quantity):'')}" onblur="updateIngredient('${m.id}','${ing.id}','quantity',this.value)" /></td>
+        <td><input class="ing-input unit" value="${escH(ing.unit||'')}" onblur="updateIngredient('${m.id}','${ing.id}','unit',this.value)" /></td>
+        <td><input class="ing-input" value="${escH(ing.name)}" onblur="updateIngredient('${m.id}','${ing.id}','name',this.value)" /></td>
+        <td><button class="ing-btn-del" onclick="deleteIngredient('${m.id}','${ing.id}')">✕</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
 
-function toggleEditor(id) {
-  openEditorId = openEditorId === id ? null : id;
-  renderList();
+// ── Ingredients CRUD ──────────────────────────────────────────────────────────
+async function loadIngredients(mealId) {
+  const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  try {
+    const rows = await api('GET', `ingredients?meal_id=eq.${mealId}&order=sort_order.asc,created_at.asc`);
+    meal._ingredients = rows || [];
+  } catch(e) { meal._ingredients = []; }
+}
+
+async function addIngredient(mealId, safeId) {
+  const qty   = document.getElementById('ing-qty-'  + safeId);
+  const unit  = document.getElementById('ing-unit-' + safeId);
+  const name  = document.getElementById('ing-name-' + safeId);
+  if (!name || !name.value.trim()) { if(name) name.focus(); return; }
+  const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  const payload = {
+    meal_id: mealId,
+    name: name.value.trim(),
+    quantity: qty && qty.value.trim() ? parseFloat(qty.value) || qty.value.trim() : null,
+    unit: unit && unit.value.trim() ? unit.value.trim() : null,
+    sort_order: (meal._ingredients || []).length
+  };
+  try {
+    const result = await api('POST', 'ingredients', payload);
+    if (!meal._ingredients) meal._ingredients = [];
+    meal._ingredients.push(result[0]);
+    if(qty) qty.value=''; if(unit) unit.value=''; if(name) name.value='';
+    renderIngList(meal);
+  } catch(e) { setStatus('Error adding ingredient: ' + e.message, true); }
+}
+
+async function updateIngredient(mealId, ingId, field, value) {
+  const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  const ing = (meal._ingredients||[]).find(i => i.id === ingId); if (!ing) return;
+  let parsed = value.trim();
+  if (field === 'quantity') parsed = parsed ? (parseFloat(parsed) || parsed) : null;
+  if (field === 'unit') parsed = parsed || null;
+  if (ing[field] === parsed) return;
+  try {
+    await api('PATCH', `ingredients?id=eq.${ingId}`, { [field]: parsed });
+    ing[field] = parsed;
+  } catch(e) { setStatus('Error saving: ' + e.message, true); }
+}
+
+async function deleteIngredient(mealId, ingId) {
+  const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  try {
+    await api('DELETE', `ingredients?id=eq.${ingId}`);
+    meal._ingredients = (meal._ingredients||[]).filter(i => i.id !== ingId);
+    renderIngList(meal);
+  } catch(e) { setStatus('Error deleting: ' + e.message, true); }
+}
+
+async function toggleEditor(id) {
+  if (openEditorId === id) {
+    openEditorId = null;
+    renderList();
+  } else {
+    openEditorId = id;
+    const meal = meals.find(m => m.id === id);
+    if (meal && !meal._ingredients) await loadIngredients(id);
+    renderList();
+  }
 }
 
 async function toggleMealTag(id, tag) {
