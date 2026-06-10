@@ -222,11 +222,35 @@ header h1 { font-size: 19px; font-weight: 500; }
 .print-header { display: none; text-align: center; margin-bottom: 24px; }
 .print-header h2 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
 .print-header p { font-size: 13px; color: #666; }
+/* Ingredient list modal */
+.ing-modal-section { margin-bottom: 16px; }
+.ing-modal-section h4 { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #f0efe8; }
+.ing-modal-row { display: flex; gap: 10px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #f8f7f4; align-items: baseline; }
+.ing-modal-row:last-child { border-bottom: none; }
+.ing-modal-qty { color: #888; min-width: 80px; flex-shrink: 0; }
+.ing-modal-name { flex: 1; }
+.ing-modal-empty { font-size: 13px; color: #aaa; padding: 8px 0; }
+.btn-green { background: #2a7a3b; color: #fff; border-color: #2a7a3b; }
+.btn-green:hover { background: #236332; }
+.btn-blue { background: #1a5a9a; color: #fff; border-color: #1a5a9a; }
+.btn-blue:hover { background: #144880; }
 </style>
 </head>
 <body>
 
 <div class="loader" id="loader">Loading…</div>
+
+<!-- Ingredient list modal -->
+<div class="modal-overlay" id="ing-modal" onclick="if(event.target===this)closeIngModal()">
+  <div class="modal">
+    <h3>🛒 This week's ingredients</h3>
+    <p class="modal-note">All ingredients across this week's planned meals.</p>
+    <div class="modal-scroll" id="ing-modal-content"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeIngModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Tag management modal -->
 <div class="modal-overlay" id="tag-modal" onclick="if(event.target===this)closeTagModal()">
@@ -300,7 +324,9 @@ header h1 { font-size: 19px; font-weight: 500; }
       <h2>📅 This week's plan</h2>
       <div class="plan-header-actions">
         <button class="btn btn-danger" onclick="clearPlan()">Clear</button>
-        <button class="btn btn-publish" onclick="publishPlan()">Publish & Print</button>
+        <button class="btn btn-blue" onclick="viewIngredientList()">🛒 Ingredients</button>
+        <button class="btn btn-primary" onclick="publishOnly()">📌 Publish</button>
+        <button class="btn btn-green" onclick="printPlan()">🖨 Print</button>
       </div>
     </div>
     <div id="plan-body">
@@ -610,25 +636,61 @@ function dragEnd(e) {
   document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
 }
 
-// ── Publish & Print ───────────────────────────────────────────────────────────
-async function publishPlan() {
-  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
+// ── Publish, Print, View Ingredients ─────────────────────────────────────────
 
+async function publishOnly() {
+  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
+  try {
+    await api('POST', 'meal_plans', { created_at: new Date().toISOString(), plan: planItems });
+    setStatus('Plan published! ✓');
+  } catch(e) { setStatus('Error publishing: ' + e.message, true); }
+}
+
+async function printPlan() {
+  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
   const now = new Date();
   const label = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   document.getElementById('print-date').textContent = 'Week of ' + label;
   document.getElementById('grocery-date').textContent = 'Week of ' + label;
-
-  // Build grocery list from planned meals
   await buildGroceryList();
-
-  // Save to DB
-  try {
-    await api('POST', 'meal_plans', { created_at: now.toISOString(), plan: planItems });
-  } catch(e) { console.warn('Could not save plan:', e.message); }
-
   window.print();
 }
+
+async function viewIngredientList() {
+  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
+  const mealNames = [...new Set(planItems.map(p => p.mealName))];
+  const allIng = [];
+  for (const name of mealNames) {
+    const meal = meals.find(m => m.name === name);
+    if (!meal) continue;
+    if (!meal._ingredients) await loadIngredients(meal.id);
+    for (const ing of (meal._ingredients || [])) {
+      allIng.push({ ...ing, mealName: name });
+    }
+  }
+  const content = document.getElementById('ing-modal-content');
+  if (!allIng.length) {
+    content.innerHTML = '<div class="ing-modal-empty">No ingredients added to any of this week\'s meals yet.</div>';
+  } else {
+    const byMeal = {};
+    for (const ing of allIng) {
+      if (!byMeal[ing.mealName]) byMeal[ing.mealName] = [];
+      byMeal[ing.mealName].push(ing);
+    }
+    content.innerHTML = Object.entries(byMeal).map(([mealName, ings]) => {
+      const rows = ings.map(ing => {
+        const qty = ing.quantity != null ? ing.quantity : '';
+        const unit = ing.unit || '';
+        const qtyStr = [qty, unit].filter(Boolean).join(' ');
+        return `<div class="ing-modal-row"><span class="ing-modal-qty">${escH(qtyStr)}</span><span class="ing-modal-name">${escH(ing.name)}</span></div>`;
+      }).join('');
+      return `<div class="ing-modal-section"><h4>${escH(mealName)}</h4>${rows}</div>`;
+    }).join('');
+  }
+  document.getElementById('ing-modal').classList.add('show');
+}
+
+function closeIngModal() { document.getElementById('ing-modal').classList.remove('show'); }
 
 async function buildGroceryList() {
   // Collect all ingredients for planned meals
