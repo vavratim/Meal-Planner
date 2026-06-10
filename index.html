@@ -160,7 +160,17 @@ header h1 { font-size: 19px; font-weight: 500; }
   .plan-card { border: none; margin: 0; box-shadow: none; }
   .print-header { display: block !important; }
   .plan-day { break-inside: avoid; }
+  .no-print { display: none !important; }
+  .plan-slot-remove { display: none !important; }
+  .drag-handle { display: none !important; }
+  .plan-day-slot select { display: none !important; }
+  .plan-day-slot { border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .plan-day-label { font-size: 13px; color: #333 !important; }
+  .plan-slot-name { font-size: 15px; }
 }
+.sort-wrap { display: flex; align-items: center; gap: 6px; }
+.sort-wrap label { font-size: 12px; color: #888; }
+.sort-select { padding: 5px 10px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; background: #fff; outline: none; cursor: pointer; color: #333; }
 .print-header { display: none; text-align: center; margin-bottom: 24px; }
 .print-header h2 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
 .print-header p { font-size: 13px; color: #666; }
@@ -279,7 +289,7 @@ const H = {
 };
 
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
-let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [];
+let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'count-desc';
 
 // Plan state: array of {dayIndex, mealName} in display order
 let planItems = [];
@@ -342,9 +352,23 @@ function buildFilterBar() {
     allTags.map(t =>
       `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
     ).join('') +
-    `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>`;
+    `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>` +
+    `<div class="sort-wrap">
+       <label for="sort-select">Sort:</label>
+       <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
+         <option value="count-desc" ${currentSort==='count-desc'?'selected':''}>Usage: High → Low</option>
+         <option value="count-asc"  ${currentSort==='count-asc'?'selected':''}>Usage: Low → High</option>
+         <option value="alpha-asc"  ${currentSort==='alpha-asc'?'selected':''}>A → Z</option>
+         <option value="alpha-desc" ${currentSort==='alpha-desc'?'selected':''}>Z → A</option>
+       </select>
+     </div>`;
   const s = document.getElementById('search');
   if (s) s.addEventListener('input', renderList);
+}
+
+function setSort(val) {
+  currentSort = val;
+  renderList();
 }
 
 document.getElementById('filter-bar').addEventListener('click', e => {
@@ -369,10 +393,17 @@ function renderList() {
   const grid = document.getElementById('meal-grid');
   const searchEl = document.getElementById('search');
   const search = searchEl ? searchEl.value.toLowerCase().trim() : '';
-  const filtered = meals.filter(m => {
+  let filtered = meals.filter(m => {
     const ms = currentFilter === 'all' || (m.season||[]).includes(currentFilter);
     const ss = !search || m.name.toLowerCase().includes(search);
     return ms && ss;
+  });
+  filtered = filtered.slice().sort((a,b) => {
+    if (currentSort === 'count-desc') return b.count - a.count || a.name.localeCompare(b.name);
+    if (currentSort === 'count-asc')  return a.count - b.count || a.name.localeCompare(b.name);
+    if (currentSort === 'alpha-asc')  return a.name.localeCompare(b.name);
+    if (currentSort === 'alpha-desc') return b.name.localeCompare(a.name);
+    return 0;
   });
   document.getElementById('meal-count').textContent = meals.length + ' meals tracked';
   if (!filtered.length) { grid.innerHTML = '<div class="empty">No meals found.</div>'; return; }
@@ -455,12 +486,12 @@ function renderPlan() {
            ondragover="dragOver(event)"
            ondrop="dropOn(event,${idx})"
            ondragend="dragEnd(event)">
-        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <span class="drag-handle no-print" title="Drag to reorder">⠿</span>
         <span class="plan-slot-name">${escH(mealName)}</span>
-        <select class="btn" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
+        <select class="btn no-print" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
           ${DAYS.map((day,di)=>`<option value="${di}" ${di===d?'selected':''}>${day}</option>`).join('')}
         </select>
-        <button class="plan-slot-remove" onclick="removePlanItem(${idx})" title="Remove">✕</button>
+        <button class="plan-slot-remove no-print" onclick="removePlanItem(${idx})" title="Remove">✕</button>
       </div>`).join('');
     return `<div class="plan-day" data-day="${d}">
       <div class="plan-day-label">${DAYS[d]}</div>
