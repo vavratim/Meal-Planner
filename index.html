@@ -74,12 +74,15 @@ header h1 { font-size: 19px; font-weight: 500; }
 .tag-pill.selected { background: #1a1a18; border-color: #1a1a18; color: #fff; }
 
 /* ── Filters ── */
-.controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.controls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.filter-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .filter-btn { padding: 5px 13px; border-radius: 999px; border: 1px solid #d0cfc8; background: #fff; color: #555; font-size: 13px; cursor: pointer; transition: all .15s; }
 .filter-btn.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
-.search-wrap { margin-left: auto; }
-.search-wrap input { padding: 6px 12px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; background: #fff; outline: none; width: 180px; }
+.search-wrap input { padding: 6px 12px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; background: #fff; outline: none; width: 200px; }
 .search-wrap input:focus { border-color: #378ADD; }
+.sort-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sort-wrap label { font-size: 13px; color: #666; }
 
 /* ── Meal List ── */
 .meal-grid { display: flex; flex-direction: column; gap: 4px; }
@@ -400,21 +403,27 @@ function tagLabel(t) {
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   bar.innerHTML =
-    `<button class="filter-btn ${currentFilter==='all'?'active':''}" data-filter="all">All</button>` +
-    allTags.map(t =>
-      `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
-    ).join('') +
-    `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>` +
-    `<div class="search-wrap"><input type="text" id="ing-search" placeholder="Search by ingredient…" /></div>` +
-    `<div class="sort-wrap">
-       <label for="sort-select">Sort:</label>
-       <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
-         <option value="count-desc" ${currentSort==='count-desc'?'selected':''}>Usage: High → Low</option>
-         <option value="count-asc"  ${currentSort==='count-asc'?'selected':''}>Usage: Low → High</option>
-         <option value="alpha-asc"  ${currentSort==='alpha-asc'?'selected':''}>A → Z</option>
-         <option value="alpha-desc" ${currentSort==='alpha-desc'?'selected':''}>Z → A</option>
-       </select>
-     </div>`;
+    // Row 1: tag filter buttons
+    `<div class="filter-row">
+      <button class="filter-btn ${currentFilter==='all'?'active':''}" data-filter="all">All</button>` +
+      allTags.map(t =>
+        `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
+      ).join('') +
+    `</div>` +
+    // Row 2: search inputs + sort
+    `<div class="search-row">
+      <div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>
+      <div class="search-wrap"><input type="text" id="ing-search" placeholder="Search by ingredient…" /></div>
+      <div class="sort-wrap">
+        <label for="sort-select">Sort:</label>
+        <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
+          <option value="count-desc" ${currentSort==='count-desc'?'selected':''}>Usage: High → Low</option>
+          <option value="count-asc"  ${currentSort==='count-asc'?'selected':''}>Usage: Low → High</option>
+          <option value="alpha-asc"  ${currentSort==='alpha-asc'?'selected':''}>A → Z</option>
+          <option value="alpha-desc" ${currentSort==='alpha-desc'?'selected':''}>Z → A</option>
+        </select>
+      </div>
+    </div>`;
   const s = document.getElementById('search');
   if (s) s.addEventListener('input', renderList);
   const is = document.getElementById('ing-search');
