@@ -230,6 +230,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .ing-modal-qty { color: #888; min-width: 80px; flex-shrink: 0; }
 .ing-modal-name { flex: 1; }
 .ing-modal-empty { font-size: 13px; color: #aaa; padding: 8px 0; }
+.ing-modal-source { font-size: 11px; color: #bbb; margin-top: 2px; padding-left: 90px; }
 .btn-green { background: #2a7a3b; color: #fff; border-color: #2a7a3b; }
 .btn-green:hover { background: #236332; }
 .btn-blue { background: #1a5a9a; color: #fff; border-color: #1a5a9a; }
@@ -668,25 +669,46 @@ async function viewIngredientList() {
       allIng.push({ ...ing, mealName: name });
     }
   }
-  const content = document.getElementById('ing-modal-content');
+  const el = document.getElementById('ing-modal-content');
   if (!allIng.length) {
-    content.innerHTML = '<div class="ing-modal-empty">No ingredients added to any of this week\'s meals yet.</div>';
-  } else {
-    const byMeal = {};
-    for (const ing of allIng) {
-      if (!byMeal[ing.mealName]) byMeal[ing.mealName] = [];
-      byMeal[ing.mealName].push(ing);
-    }
-    content.innerHTML = Object.entries(byMeal).map(([mealName, ings]) => {
-      const rows = ings.map(ing => {
-        const qty = ing.quantity != null ? ing.quantity : '';
-        const unit = ing.unit || '';
-        const qtyStr = [qty, unit].filter(Boolean).join(' ');
-        return `<div class="ing-modal-row"><span class="ing-modal-qty">${escH(qtyStr)}</span><span class="ing-modal-name">${escH(ing.name)}</span></div>`;
-      }).join('');
-      return `<div class="ing-modal-section"><h4>${escH(mealName)}</h4>${rows}</div>`;
-    }).join('');
+    el.innerHTML = '<div class="ing-modal-empty">No ingredients added yet.</div>';
+    document.getElementById('ing-modal').classList.add('show');
+    return;
   }
+
+  // Combine by name + unit — sum quantities, track which meals use each
+  const combined = {};
+  for (const ing of allIng) {
+    const normName = ing.name.trim().toLowerCase();
+    const normUnit = (ing.unit || '').trim().toLowerCase();
+    const key = normName + '||' + normUnit;
+    if (!combined[key]) {
+      combined[key] = { name: ing.name.trim(), unit: ing.unit || '', totalQty: null, meals: [] };
+    }
+    const entry = combined[key];
+    if (ing.quantity != null && !isNaN(Number(ing.quantity))) {
+      entry.totalQty = (entry.totalQty || 0) + Number(ing.quantity);
+    }
+    if (!entry.meals.includes(ing.mealName)) entry.meals.push(ing.mealName);
+  }
+
+  // Sort alphabetically
+  const sorted = Object.values(combined).sort((a, b) => a.name.localeCompare(b.name));
+
+  el.innerHTML = sorted.map(entry => {
+    const qty = entry.totalQty != null ? entry.totalQty : '';
+    const unit = entry.unit || '';
+    const qtyStr = [qty, unit].filter(v => v !== '').join(' ');
+    const mealStr = entry.meals.join(', ');
+    return `<div class="ing-modal-row" style="flex-direction:column;align-items:flex-start;gap:2px;">
+      <div style="display:flex;gap:10px;width:100%;">
+        <span class="ing-modal-qty">${escH(qtyStr)}</span>
+        <span class="ing-modal-name">${escH(entry.name)}</span>
+      </div>
+      <div class="ing-modal-source">${escH(mealStr)}</div>
+    </div>`;
+  }).join('');
+
   document.getElementById('ing-modal').classList.add('show');
 }
 
