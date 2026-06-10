@@ -100,8 +100,8 @@ header h1 { font-size: 19px; font-weight: 500; }
 .btn-edit { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: transparent; cursor: pointer; color: #666; }
 .btn-edit:hover { background: #f0efe8; }
 .btn-edit.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
-.btn-del { width: 26px; height: 26px; border-radius: 6px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; font-size: 14px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
-.meal-row:hover .btn-del { opacity: 1; }
+.btn-del { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; white-space: nowrap; }
+.btn-del:hover { background: #fcefef; }
 
 /* ── Inline tag editor ── */
 .meal-editor { border-top: 1px solid #f0efe8; padding: 12px 14px 14px; background: #fafaf9; display: none; }
@@ -117,6 +117,10 @@ header h1 { font-size: 19px; font-weight: 500; }
 .editor-add-row button { padding: 5px 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: #fff; font-size: 13px; cursor: pointer; }
 .editor-add-row button:hover { background: #f0efe8; }
 .editor-no-tags { font-size: 12px; color: #bbb; padding: 4px 0; }
+.btn-add-tag { padding: 3px 10px; border-radius: 999px; border: 1px dashed #d0cfc8; background: transparent; cursor: pointer; color: #888; font-size: 15px; line-height: 1; margin-top: 4px; }
+.btn-add-tag:hover { border-color: #1a1a18; color: #1a1a18; background: #f5f4f0; }
+.btn-del-meal { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; white-space: nowrap; }
+.btn-del-meal:hover { background: #fcefef; }
 .editor-divider { border: none; border-top: 1px solid #e8e7e0; margin: 14px 0 12px; }
 .notes-textarea { width: 100%; padding: 8px 10px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff; outline: none; resize: vertical; min-height: 80px; color: #1a1a18; line-height: 1.5; }
 .notes-textarea:focus { border-color: #378ADD; }
@@ -401,6 +405,7 @@ function buildFilterBar() {
       `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
     ).join('') +
     `<div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>` +
+    `<div class="search-wrap"><input type="text" id="ing-search" placeholder="Search by ingredient…" /></div>` +
     `<div class="sort-wrap">
        <label for="sort-select">Sort:</label>
        <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
@@ -412,6 +417,8 @@ function buildFilterBar() {
      </div>`;
   const s = document.getElementById('search');
   if (s) s.addEventListener('input', renderList);
+  const is = document.getElementById('ing-search');
+  if (is) is.addEventListener('input', renderList);
 }
 
 function setSort(val) {
@@ -441,10 +448,13 @@ function renderList() {
   const grid = document.getElementById('meal-grid');
   const searchEl = document.getElementById('search');
   const search = searchEl ? searchEl.value.toLowerCase().trim() : '';
+  const ingSearchEl = document.getElementById('ing-search');
+  const ingSearch = ingSearchEl ? ingSearchEl.value.toLowerCase().trim() : '';
   let filtered = meals.filter(m => {
     const ms = currentFilter === 'all' || (m.season||[]).includes(currentFilter);
     const ss = !search || m.name.toLowerCase().includes(search);
-    return ms && ss;
+    const is = !ingSearch || (m._ingredients||[]).some(i => i.name.toLowerCase().includes(ingSearch));
+    return ms && ss && is;
   });
   filtered = filtered.slice().sort((a,b) => {
     if (currentSort === 'count-desc') return b.count - a.count || a.name.localeCompare(b.name);
@@ -480,8 +490,8 @@ function renderList() {
         </div>
         <div class="meal-actions">
           ${countHtml}
-          <button class="btn-edit ${isOpen?'active':''}" onclick="toggleEditor('${m.id}')">✏️ Tags</button>
-          <button class="btn-del" onclick="deleteMeal('${m.id}')">✕</button>
+          <button class="btn-edit ${isOpen?'active':''}" onclick="toggleEditor('${m.id}')">✏️ Edit</button>
+          ${isOpen ? `<button class="btn-del" onclick="deleteMeal('${m.id}')">🗑 Delete</button>` : ''}
         </div>
       </div>
       <div class="meal-editor ${isOpen?'open':''}" id="editor-${m.id}">${renderEditor(m)}</div>
@@ -724,10 +734,7 @@ function renderEditor(m) {
 
   return `<div class="editor-label">Tags — click to toggle</div>
     <div class="editor-tags">${tagsHtml}</div>
-    <div class="editor-add-row">
-      <input type="text" id="newtag-${safeId}" placeholder="Create &amp; add a new tag…" onkeydown="if(event.key==='Enter')quickAddTag('${m.id}','${safeId}')" />
-      <button onclick="quickAddTag('${m.id}','${safeId}')">+ Add</button>
-    </div>
+    <button class="btn-add-tag" onclick="addTagPopup('${m.id}')" title="Add tag">＋</button>
     <hr class="editor-divider" />
     <div class="editor-label">Ingredients</div>
     <div id="ing-list-${safeId}">${ingRows}</div>
@@ -736,7 +743,11 @@ function renderEditor(m) {
       <input class="f-unit" type="text" id="ing-unit-${safeId}" placeholder="Unit" />
       <input class="f-name" type="text" id="ing-name-${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('${m.id}','${safeId}')" />
       <button onclick="addIngredient('${m.id}','${safeId}')">+ Add</button>
-    </div>`;
+    </div>
+    <hr class="editor-divider" />
+    <div class="editor-label">Cooking Instructions</div>
+    <textarea class="notes-textarea" id="notes-${safeId}" placeholder="Steps, tips, temperature, time…" onblur="saveNotes('${m.id}','${safeId}')">${escH(m.notes||'')}</textarea>
+    <div class="notes-saving" id="notes-status-${safeId}"></div>`;
 }
 
 function renderIngList(m) {
@@ -759,6 +770,21 @@ function renderIngList(m) {
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
+
+async function saveNotes(mealId, safeId) {
+  const textarea = document.getElementById('notes-' + safeId);
+  const statusEl = document.getElementById('notes-status-' + safeId);
+  if (!textarea) return;
+  const notes = textarea.value;
+  const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  if (meal.notes === notes) return;
+  if (statusEl) statusEl.textContent = 'Saving…';
+  try {
+    await api('PATCH', `meals?id=eq.${mealId}`, { notes });
+    meal.notes = notes;
+    if (statusEl) { statusEl.textContent = 'Saved ✓'; setTimeout(() => { if(statusEl) statusEl.textContent=''; }, 2000); }
+  } catch(e) { if (statusEl) statusEl.textContent = 'Error saving'; }
+}
 
 // ── Ingredients CRUD ──────────────────────────────────────────────────────────
 async function loadIngredients(mealId) {
@@ -806,6 +832,8 @@ async function updateIngredient(mealId, ingId, field, value) {
 
 async function deleteIngredient(mealId, ingId) {
   const meal = meals.find(m => m.id === mealId); if (!meal) return;
+  const ing = (meal._ingredients||[]).find(i => i.id === ingId);
+  if (!confirm(`Remove "${ing ? ing.name : 'this ingredient'}"?`)) return;
   try {
     await api('DELETE', `ingredients?id=eq.${ingId}`);
     meal._ingredients = (meal._ingredients||[]).filter(i => i.id !== ingId);
@@ -841,12 +869,12 @@ async function toggleMealTag(id, tag) {
   } catch(e) { setStatus('Error saving tag: ' + e.message, true); }
 }
 
-async function quickAddTag(mealId, safeId) {
-  const input = document.getElementById('newtag-' + safeId); if (!input) return;
-  const tag = input.value.trim(); if (!tag) return;
-  if (!allTags.includes(tag)) { allTags.push(tag); await saveTags(); buildFilterBar(); buildAddPills(); }
-  await toggleMealTag(mealId, tag);
-  input.value = '';
+async function addTagPopup(mealId) {
+  const tag = prompt('Enter a tag name:');
+  if (!tag || !tag.trim()) return;
+  const t = tag.trim();
+  if (!allTags.includes(t)) { allTags.push(t); await saveTags(); buildFilterBar(); buildAddPills(); }
+  await toggleMealTag(mealId, t);
 }
 
 // ── Add / adjust / delete meal ────────────────────────────────────────────────
