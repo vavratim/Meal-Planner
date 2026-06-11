@@ -135,6 +135,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .ing-table td { padding: 5px 6px; font-size: 13px; vertical-align: middle; border-bottom: 1px solid #f0efe8; }
 .ing-table tr:last-child td { border-bottom: none; }
 .ing-input { width: 100%; padding: 4px 6px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; }
+.ing-input.unit { cursor: pointer; }
 .ing-input:focus { border-color: #378ADD; }
 .ing-input.qty { width: 70px; }
 .ing-input.unit { width: 80px; }
@@ -253,6 +254,24 @@ header h1 { font-size: 19px; font-weight: 500; }
   </div>
 </div>
 
+<!-- Units management modal -->
+<div class="modal-overlay" id="units-modal" onclick="if(event.target===this)closeUnitsModal()">
+  <div class="modal">
+    <h3>Manage units of measure</h3>
+    <p class="modal-note">These appear as dropdown options when adding ingredients.</p>
+    <div class="modal-scroll">
+      <div class="tag-manage-list" id="units-manage-list"></div>
+    </div>
+    <div class="modal-add">
+      <input type="text" id="new-unit-input" placeholder="New unit…" />
+      <button class="btn btn-primary" onclick="addUnit()">Add</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeUnitsModal()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Tag management modal -->
 <div class="modal-overlay" id="tag-modal" onclick="if(event.target===this)closeTagModal()">
   <div class="modal">
@@ -303,6 +322,10 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-item" onclick="openTagModal()">
         <span class="di-icon">🏷️</span>
         <span class="di-label">Manage tags</span>
+      </div>
+      <div class="dropdown-item" onclick="openUnitsModal()">
+        <span class="di-icon">📏</span>
+        <span class="di-label">Manage units of measure</span>
       </div>
       <div class="dropdown-section">Meal Plans</div>
       <div class="dropdown-item" onclick="openHistoryModal()">
@@ -371,6 +394,8 @@ const H = {
 };
 
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
+const DEFAULT_UNITS = ['tsp', 'tbsp', 'cup', 'fl oz', 'oz', 'lb', 'g', 'kg', 'ml', 'l', 'pinch', 'dash', 'can', 'pkg', 'bunch', 'slice', 'clove', 'piece', 'whole'];
+let allUnits = [...DEFAULT_UNITS], unitsRowId = null;
 let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'count-desc';
 
 // Plan state: array of {dayIndex, mealName} in display order
@@ -409,6 +434,18 @@ async function boot() {
         if (!mealTagSet.has(t)) { allTags.push(t); mealTagSet.add(t); }
       }
     }
+
+    // Load units
+    try {
+      let unitRows = await api('GET', 'units?select=*');
+      if (unitRows && unitRows.length) {
+        unitsRowId = unitRows[0].id;
+        allUnits = unitRows[0].names && unitRows[0].names.length ? unitRows[0].names : [...DEFAULT_UNITS];
+      } else {
+        const r = await api('POST', 'units', { names: [...DEFAULT_UNITS] });
+        if (r && r[0]) { unitsRowId = r[0].id; allUnits = [...DEFAULT_UNITS]; }
+      }
+    } catch(e) { allUnits = [...DEFAULT_UNITS]; }
 
     buildFilterBar();
     buildAddPills();
@@ -818,7 +855,7 @@ function renderEditor(m) {
         <tbody>${ings.map((ing, idx) => `
           <tr>
             <td><input class="ing-input qty" value="${escH(ing.quantity!=null?String(ing.quantity):'')}" onblur="updateIngredient('${m.id}','${ing.id}','quantity',this.value)" /></td>
-            <td><input class="ing-input unit" value="${escH(ing.unit||'')}" onblur="updateIngredient('${m.id}','${ing.id}','unit',this.value)" /></td>
+            <td>${unitSelect(ing.unit, `updateIngredient('${m.id}','${ing.id}','unit',this.value)`)}</td>
             <td><input class="ing-input" value="${escH(ing.name)}" onblur="updateIngredient('${m.id}','${ing.id}','name',this.value)" /></td>
             <td><button class="ing-btn-del" onclick="deleteIngredient('${m.id}','${ing.id}')">✕</button></td>
           </tr>`).join('')}
@@ -832,10 +869,10 @@ function renderEditor(m) {
     <div class="editor-label">Ingredients</div>
     <div id="ing-list-${safeId}">${ingRows}</div>
     <div class="ing-add-row">
-      <input class="f-qty" type="text" id="ing-qty-${safeId}" placeholder="Qty" />
-      <input class="f-unit" type="text" id="ing-unit-${safeId}" placeholder="Unit" />
-      <input class="f-name" type="text" id="ing-name-${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('${m.id}','${safeId}')" />
-      <button onclick="addIngredient('${m.id}','${safeId}')">+ Add</button>
+      <input class="f-qty" type="text" id="ing-qty-\${safeId}" placeholder="Qty" />
+      <select class="ing-input unit f-unit" id="ing-unit-\${safeId}">\${['', ...allUnits].map(u => `<option value="\${escAttr(u)}">\${escH(u)}</option>`).join('')}</select>
+      <input class="f-name" type="text" id="ing-name-\${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('\${m.id}','\${safeId}')" />
+      <button onclick="addIngredient('\${m.id}','\${safeId}')">+ Add</button>
     </div>
     <hr class="editor-divider" />
     <div class="editor-label">Cooking Instructions</div>
@@ -854,12 +891,63 @@ function renderIngList(m) {
     <tbody>${ings.map(ing => `
       <tr>
         <td><input class="ing-input qty" value="${escH(ing.quantity!=null?String(ing.quantity):'')}" onblur="updateIngredient('${m.id}','${ing.id}','quantity',this.value)" /></td>
-        <td><input class="ing-input unit" value="${escH(ing.unit||'')}" onblur="updateIngredient('${m.id}','${ing.id}','unit',this.value)" /></td>
+        <td>${unitSelect(ing.unit, `updateIngredient('${m.id}','${ing.id}','unit',this.value)`)}</td>
         <td><input class="ing-input" value="${escH(ing.name)}" onblur="updateIngredient('${m.id}','${ing.id}','name',this.value)" /></td>
         <td><button class="ing-btn-del" onclick="deleteIngredient('${m.id}','${ing.id}')">✕</button></td>
       </tr>`).join('')}
     </tbody>
   </table>`;
+}
+
+// ── Unit select helper ────────────────────────────────────────────────────────
+function unitSelect(currentVal, onchangeJs) {
+  const opts = ['', ...allUnits].map(u =>
+    `<option value="${escAttr(u)}" ${u === (currentVal||'') ? 'selected' : ''}>${escH(u)}</option>`
+  ).join('');
+  return `<select class="ing-input unit" onchange="${onchangeJs}">${opts}</select>`;
+}
+
+// ── Units modal ───────────────────────────────────────────────────────────────
+function openUnitsModal() {
+  document.getElementById('dropdown').classList.add('hidden');
+  renderUnitsModal();
+  document.getElementById('units-modal').classList.add('show');
+}
+function closeUnitsModal() { document.getElementById('units-modal').classList.remove('show'); }
+
+function renderUnitsModal() {
+  const list = document.getElementById('units-manage-list');
+  if (!allUnits.length) { list.innerHTML = '<div style="font-size:13px;color:#aaa;">No units yet.</div>'; return; }
+  list.innerHTML = allUnits.map(u => `
+    <div class="tag-manage-row">
+      <span class="tag-manage-name">${escH(u)}</span>
+      <button class="tag-manage-del" data-unit="${escAttr(u)}" onclick="deleteUnit(this.dataset.unit)">Remove</button>
+    </div>`).join('');
+}
+
+async function addUnit() {
+  const input = document.getElementById('new-unit-input');
+  const u = (input.value || '').trim();
+  if (!u || allUnits.includes(u)) { input.focus(); return; }
+  allUnits.push(u);
+  await saveUnits();
+  input.value = '';
+  renderUnitsModal();
+}
+
+async function deleteUnit(u) {
+  if (!confirm(`Remove unit "${u}"?`)) return;
+  allUnits = allUnits.filter(x => x !== u);
+  await saveUnits();
+  renderUnitsModal();
+}
+
+async function saveUnits() {
+  if (!unitsRowId) {
+    try { const r = await api('POST', 'units', { names: allUnits }); if (r && r[0]) unitsRowId = r[0].id; } catch(e) {}
+    return;
+  }
+  try { await api('PATCH', `units?id=eq.${unitsRowId}`, { names: allUnits }); } catch(e) {}
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
@@ -1097,6 +1185,7 @@ function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot
 
 document.getElementById('new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addMeal(); });
 document.getElementById('new-global-tag').addEventListener('keydown', e=>{ if(e.key==='Enter') addGlobalTag(); });
+document.getElementById('new-unit-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addUnit(); });
 
 boot();
 </script>
