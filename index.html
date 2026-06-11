@@ -324,6 +324,24 @@ header h1 { font-size: 19px; font-weight: 500; }
   </div>
 </div>
 
+<!-- Add meal modal -->
+<div class="modal-overlay" id="add-meal-modal" onclick="if(event.target===this)closeAddMealModal()">
+  <div class="modal">
+    <h3>Add a meal</h3>
+    <p class="modal-note">Enter a name and optionally select tags.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <input type="text" id="modal-new-name" placeholder="Meal name…" autocomplete="off"
+             style="padding:9px 12px;border:1px solid #d0cfc8;border-radius:8px;font-size:14px;outline:none;width:100%;"
+             onkeydown="if(event.key==='Enter')submitAddMealModal()" />
+      <div id="modal-tag-pills" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
+    <div class="modal-footer" style="gap:8px;">
+      <button class="btn" onclick="closeAddMealModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-btn-add" onclick="submitAddMealModal()">Add meal</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <div>
     <h1>🍽 Meal Planner</h1>
@@ -346,6 +364,11 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-item" onclick="openUnitsModal()">
         <span class="di-icon">📏</span>
         <span class="di-label">Manage units of measure</span>
+      </div>
+      <div class="dropdown-section">Meals</div>
+      <div class="dropdown-item" onclick="openAddMealModal()">
+        <span class="di-icon">➕</span>
+        <span class="di-label">Add a meal</span>
       </div>
       <div class="dropdown-section">Meal Plans</div>
       <div class="dropdown-item" onclick="openHistoryModal()">
@@ -377,16 +400,6 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="plan-empty" id="plan-empty">Check meals below to add them to this week's plan.</div>
       <div class="plan-days" id="plan-days" style="display:none"></div>
     </div>
-  </div>
-
-  <!-- Add Meal -->
-  <div class="add-card">
-    <h2>Add a meal</h2>
-    <div class="add-row">
-      <input type="text" id="new-name" placeholder="Meal name…" autocomplete="off" />
-      <button class="btn btn-primary" id="btn-add" onclick="addMeal()">Add</button>
-    </div>
-    <div class="tag-pills" id="add-tag-pills"></div>
   </div>
 
   <div class="controls" id="filter-bar"></div>
@@ -550,10 +563,9 @@ document.getElementById('filter-bar').addEventListener('click', e => {
 
 // ── Add tag pills ─────────────────────────────────────────────────────────────
 function buildAddPills() {
-  document.getElementById('add-tag-pills').innerHTML = allTags.map(t => {
-    const sel = selectedAddTags.includes(t);
-    return `<span class="tag-pill ${sel?'selected':''}" onclick="toggleAddTag(${JSON.stringify(t)})">${tagLabel(t)}</span>`;
-  }).join('');
+  // Update modal tag pills if modal is open
+  const modalPills = document.getElementById('modal-tag-pills');
+  if (modalPills) buildModalTagPills();
 }
 
 // ── Meal list render ──────────────────────────────────────────────────────────
@@ -1168,21 +1180,55 @@ function toggleAddTag(tag) {
   buildAddPills();
 }
 
-async function addMeal() {
-  const nameEl = document.getElementById('new-name');
+function openAddMealModal() {
+  document.getElementById('dropdown').classList.add('hidden');
+  document.getElementById('modal-new-name').value = '';
+  selectedAddTags = [];
+  buildModalTagPills();
+  document.getElementById('add-meal-modal').classList.add('show');
+  setTimeout(() => document.getElementById('modal-new-name').focus(), 100);
+}
+
+function closeAddMealModal() {
+  document.getElementById('add-meal-modal').classList.remove('show');
+}
+
+function buildModalTagPills() {
+  document.getElementById('modal-tag-pills').innerHTML = allTags.map(t => {
+    const sel = selectedAddTags.includes(t);
+    return `<span class="tag-pill ${sel?'selected':''}" onclick="toggleAddTag(${JSON.stringify(t)});buildModalTagPills()">${tagLabel(t)}</span>`;
+  }).join('');
+}
+
+async function submitAddMealModal() {
+  const nameEl = document.getElementById('modal-new-name');
   const name = nameEl.value.trim(); if (!name) { nameEl.focus(); return; }
-  const btn = document.getElementById('btn-add'); btn.disabled=true; btn.textContent='Adding…';
+  const btn = document.getElementById('modal-btn-add'); btn.disabled=true; btn.textContent='Adding…';
   try {
     if (meals.find(m => m.name.toLowerCase()===name.toLowerCase())) {
-      setStatus(`"${name}" already exists.`); btn.disabled=false; btn.textContent='Add'; return;
+      setStatus(`"${name}" already exists.`); btn.disabled=false; btn.textContent='Add meal'; return;
     }
-    const result = await api('POST', 'meals', { name, season:[...selectedAddTags], count:1 });
-    meals.unshift(result[0]);
-    meals.sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
-    nameEl.value=''; selectedAddTags=[]; buildAddPills(); renderList();
+    const result = await api('POST', 'meals', { name, season:[...selectedAddTags], count:1, _ingredients:[] });
+    const newMeal = result[0];
+    newMeal._ingredients = [];
+    meals.push(newMeal);
+    meals.sort((a,b) => {
+      if (currentSort==='count-desc') return b.count-a.count||a.name.localeCompare(b.name);
+      if (currentSort==='count-asc')  return a.count-b.count||a.name.localeCompare(b.name);
+      if (currentSort==='alpha-asc')  return a.name.localeCompare(b.name);
+      if (currentSort==='alpha-desc') return b.name.localeCompare(a.name);
+      return 0;
+    });
+    selectedAddTags = [];
+    closeAddMealModal();
+    renderList();
     setStatus(`"${name}" added!`);
   } catch(e) { setStatus('Error: '+e.message, true); }
-  btn.disabled=false; btn.textContent='Add';
+  btn.disabled=false; btn.textContent='Add meal';
+}
+
+async function addMeal() {
+  // Legacy - kept for compatibility but no longer called from UI
 }
 
 async function saveMealName(id, newName) {
@@ -1301,7 +1347,7 @@ function setStatus(msg, isError) {
 function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-document.getElementById('new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addMeal(); });
+// Add meal now in options menu modal
 document.getElementById('new-global-tag').addEventListener('keydown', e=>{ if(e.key==='Enter') addGlobalTag(); });
 document.getElementById('new-unit-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addUnit(); });
 
