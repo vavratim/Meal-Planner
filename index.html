@@ -470,6 +470,23 @@ async function boot() {
       }
     } catch(e) { allUnits = [...DEFAULT_UNITS]; }
 
+    // Load all ingredients in one query and attach to meals
+    try {
+      const allIngredients = await api('GET', 'ingredients?select=*&order=sort_order.asc,created_at.asc');
+      if (allIngredients) {
+        // Group by meal_id
+        const ingByMeal = {};
+        for (const ing of allIngredients) {
+          if (!ingByMeal[ing.meal_id]) ingByMeal[ing.meal_id] = [];
+          ingByMeal[ing.meal_id].push(ing);
+        }
+        // Attach to meals
+        for (const meal of meals) {
+          meal._ingredients = ingByMeal[meal.id] || [];
+        }
+      }
+    } catch(e) { console.warn('Could not preload ingredients:', e.message); }
+
     buildFilterBar();
     buildAddPills();
     renderList();
