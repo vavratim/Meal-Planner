@@ -158,6 +158,10 @@ header h1 { font-size: 19px; font-weight: 500; }
 
 /* ── Grocery list print page ── */
 .grocery-page { display: none; }
+/* ── Recipe print checkbox ── */
+.recipe-print-check { width: 15px; height: 15px; cursor: pointer; accent-color: #2a7a3b; flex-shrink: 0; }
+/* ── Recipe print pages ── */
+#recipe-pages { display: none; }
 @media print {
   .grocery-page { display: block; page-break-before: always; padding: 24px; }
   .grocery-page h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
@@ -167,6 +171,15 @@ header h1 { font-size: 19px; font-weight: 500; }
   .grocery-item { display: flex; gap: 12px; font-size: 13px; padding: 3px 0; }
   .grocery-qty { color: #555; min-width: 80px; }
   .grocery-name { flex: 1; }
+  /* Recipe pages */
+  #recipe-pages { display: block; }
+  .recipe-print-page { page-break-before: always; padding: 24px; }
+  .recipe-print-page h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .recipe-print-page .rp-meta { font-size: 12px; color: #777; margin-bottom: 16px; }
+  .recipe-print-page h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin: 14px 0 8px; }
+  .recipe-print-page .rp-ing-row { display: flex; gap: 12px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+  .recipe-print-page .rp-ing-qty { min-width: 90px; color: #555; }
+  .recipe-print-page .rp-notes { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 }
 
 /* ── Modals ── */
@@ -387,6 +400,9 @@ header h1 { font-size: 19px; font-weight: 500; }
   <div id="grocery-content"></div>
 </div>
 
+<!-- Recipe pages — only visible when printing -->
+<div id="recipe-pages"></div>
+
 <script>
 const SUPABASE_URL = 'https://ylcthybtssnthhesbydt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsY3RoeWJ0c3NudGhoZXNieWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NTgzNjQsImV4cCI6MjA5NjQzNDM2NH0.PB1Geq9B7yjqFNNWnlkPOn3CFqHzwOBU9MdZMQsKibE';
@@ -402,7 +418,7 @@ const H = {
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
 const DEFAULT_UNITS = ['tsp', 'tbsp', 'cup', 'fl oz', 'oz', 'lb', 'g', 'kg', 'ml', 'l', 'pinch', 'dash', 'can', 'pkg', 'bunch', 'slice', 'clove', 'piece', 'whole'];
 let allUnits = [...DEFAULT_UNITS], unitsRowId = null;
-let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'count-desc';
+let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'alpha-asc';
 
 // Plan state: array of {dayIndex, mealName} in display order
 let planItems = [];
@@ -630,6 +646,13 @@ function renderPlan() {
           <span class="plan-slot-name">${escH(mealName)}</span>
           <input class="plan-side-input print-show" placeholder="Side dish…" value="${escAttr(planItems[idx].side||'')}" oninput="planItems[${idx}].side=this.value" />
         </div>
+        ${(function(){
+          const m = meals.find(x => x.name === mealName);
+          const hasIng = m && m._ingredients && m._ingredients.length > 0;
+          if (!hasIng) return '';
+          const checked = planItems[${idx}].printRecipe ? 'checked' : '';
+          return '<label class="no-print" style="display:flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;cursor:pointer;"><input type="checkbox" class="recipe-print-check" ' + checked + ' onchange="planItems[${idx}].printRecipe=this.checked" title="Print full recipe" /> Recipe</label>';
+        })()}
         <select class="btn no-print" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
           ${DAYS.map((day,di)=>`<option value="${di}" ${di===d?'selected':''}>${day}</option>`).join('')}
         </select>
@@ -702,7 +725,49 @@ async function printPlan() {
   document.getElementById('print-date').textContent = 'Week of ' + label;
   document.getElementById('grocery-date').textContent = 'Week of ' + label;
   await buildGroceryList();
+  await buildRecipePages();
   window.print();
+}
+
+async function buildRecipePages() {
+  const container = document.getElementById('recipe-pages');
+  // Find unique meals checked for recipe printing
+  const toPrint = [];
+  const seen = new Set();
+  for (const item of planItems) {
+    if (item.printRecipe && !seen.has(item.mealName)) {
+      seen.add(item.mealName);
+      toPrint.push(item.mealName);
+    }
+  }
+  if (!toPrint.length) { container.innerHTML = ''; return; }
+
+  let html = '';
+  for (const name of toPrint) {
+    const meal = meals.find(m => m.name === name);
+    if (!meal) continue;
+    if (!meal._ingredients) await loadIngredients(meal.id);
+    const ings = meal._ingredients || [];
+    const notes = meal.notes || '';
+
+    const ingRows = ings.map(ing => {
+      const qty = ing.quantity != null ? ing.quantity : '';
+      const unit = ing.unit || '';
+      const qtyStr = [qty, unit].filter(v => v !== '').join(' ');
+      return '<div class="rp-ing-row"><span class="rp-ing-qty">' + escH(qtyStr) + '</span><span>' + escH(ing.name) + '</span></div>';
+    }).join('');
+
+    html += '<div class="recipe-print-page">';
+    html += '<h2>' + escH(name) + '</h2>';
+    if (ings.length) {
+      html += '<h3>Ingredients</h3>' + ingRows;
+    }
+    if (notes.trim()) {
+      html += '<h3>Instructions</h3><div class="rp-notes">' + escH(notes) + '</div>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
 }
 
 async function viewIngredientList() {
