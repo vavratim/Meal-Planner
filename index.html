@@ -869,10 +869,10 @@ function renderEditor(m) {
     <div class="editor-label">Ingredients</div>
     <div id="ing-list-${safeId}">${ingRows}</div>
     <div class="ing-add-row">
-      <input class="f-qty" type="text" id="ing-qty-\${safeId}" placeholder="Qty" />
-      <select class="ing-input unit f-unit" id="ing-unit-\${safeId}">\${['', ...allUnits].map(u => `<option value="\${escAttr(u)}">\${escH(u)}</option>`).join('')}</select>
-      <input class="f-name" type="text" id="ing-name-\${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('\${m.id}','\${safeId}')" />
-      <button onclick="addIngredient('\${m.id}','\${safeId}')">+ Add</button>
+      <input class="f-qty" type="text" id="ing-qty-${safeId}" placeholder="Qty" />
+      <select class="ing-input unit f-unit" id="ing-unit-${safeId}">${['', ...allUnits].map(u => `<option value="${escAttr(u)}">${escH(u)}</option>`).join('')}</select>
+      <input class="f-name" type="text" id="ing-name-${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('${m.id}','${safeId}')" />
+      <button onclick="addIngredient('${m.id}','${safeId}')">+ Add</button>
     </div>
     <hr class="editor-divider" />
     <div class="editor-label">Cooking Instructions</div>
