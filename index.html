@@ -44,9 +44,15 @@ header h1 { font-size: 19px; font-weight: 500; }
 
 /* ── Meal Plan Card ── */
 .plan-card { background: #fff; border: 1px solid #e0dfd8; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
-.plan-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0efe8; }
-.plan-header h2 { font-size: 15px; font-weight: 500; }
-.plan-header-actions { display: flex; gap: 8px; }
+.plan-header { padding: 14px 18px; display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #f0efe8; flex-wrap: wrap; gap: 10px; }
+.plan-header h2 { font-size: 15px; font-weight: 500; padding-top: 2px; }
+.plan-header-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.plan-header-actions .btn { font-size: 12px; padding: 6px 10px; }
+@media (max-width: 480px) {
+  .plan-header { flex-direction: column; }
+  .plan-header-actions { width: 100%; }
+  .plan-header-actions .btn { flex: 1; text-align: center; font-size: 12px; }
+}
 .plan-empty { padding: 20px 18px; font-size: 13px; color: #aaa; }
 .plan-days { padding: 6px 0; }
 .plan-day { display: flex; align-items: center; gap: 0; padding: 0 18px; border-bottom: 1px solid #f8f7f4; }
@@ -83,6 +89,21 @@ header h1 { font-size: 19px; font-weight: 500; }
 .search-wrap input:focus { border-color: #378ADD; }
 .sort-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .sort-wrap label { font-size: 13px; color: #666; }
+
+/* ── Tag drawer ── */
+.tag-drawer-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 30; }
+.tag-drawer-overlay.open { display: block; }
+.tag-drawer { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: #fff; box-shadow: 4px 0 20px rgba(0,0,0,.12); z-index: 31; transform: translateX(-100%); transition: transform .25s ease; display: flex; flex-direction: column; }
+.tag-drawer.open { transform: translateX(0); }
+.tag-drawer-header { padding: 16px 16px 12px; border-bottom: 1px solid #f0efe8; display: flex; align-items: center; justify-content: space-between; }
+.tag-drawer-header h3 { font-size: 15px; font-weight: 500; }
+.tag-drawer-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e0dfd8; background: transparent; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: #666; }
+.tag-drawer-close:hover { background: #f0efe8; }
+.tag-drawer-body { flex: 1; overflow-y: auto; padding: 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.tag-drawer .filter-btn { width: 100%; text-align: left; border-radius: 8px; padding: 8px 12px; }
+.tag-drawer-toggle { width: 22px; height: 48px; background: #fff; border: 1px solid #e0dfd8; border-left: none; border-radius: 0 8px 8px 0; position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 32; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; box-shadow: 2px 0 6px rgba(0,0,0,.08); transition: left .25s ease; }
+.tag-drawer-toggle.open { left: 260px; }
+.tag-drawer-toggle:hover { background: #f5f4f0; color: #333; }
 
 /* ── Meal List ── */
 .meal-grid { display: flex; flex-direction: column; gap: 4px; }
@@ -324,6 +345,17 @@ header h1 { font-size: 19px; font-weight: 500; }
   </div>
 </div>
 
+<!-- Tag filter drawer -->
+<div class="tag-drawer-overlay" id="tag-drawer-overlay" onclick="closeTagDrawer()"></div>
+<div class="tag-drawer" id="tag-drawer">
+  <div class="tag-drawer-header">
+    <h3>Filter by tag</h3>
+    <button class="tag-drawer-close" onclick="closeTagDrawer()">✕</button>
+  </div>
+  <div class="tag-drawer-body" id="tag-drawer-body"></div>
+</div>
+<button class="tag-drawer-toggle" id="tag-drawer-toggle" onclick="toggleTagDrawer()" title="Filter by tag">&#9658;</button>
+
 <!-- Add meal modal -->
 <div class="modal-overlay" id="add-meal-modal" onclick="if(event.target===this)closeAddMealModal()">
   <div class="modal">
@@ -520,14 +552,6 @@ function tagLabel(t) {
 function buildFilterBar() {
   const bar = document.getElementById('filter-bar');
   bar.innerHTML =
-    // Row 1: tag filter buttons
-    `<div class="filter-row">
-      <button class="filter-btn ${currentFilter==='all'?'active':''}" data-filter="all">All</button>` +
-      allTags.map(t =>
-        `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
-      ).join('') +
-    `</div>` +
-    // Row 2: search inputs + sort
     `<div class="search-row">
       <div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>
       <div class="search-wrap"><input type="text" id="ing-search" placeholder="Search by ingredient…" /></div>
@@ -545,7 +569,43 @@ function buildFilterBar() {
   if (s) s.addEventListener('input', renderList);
   const is = document.getElementById('ing-search');
   if (is) is.addEventListener('input', renderList);
+  buildTagDrawer();
 }
+
+function buildTagDrawer() {
+  const body = document.getElementById('tag-drawer-body');
+  if (!body) return;
+  body.innerHTML =
+    `<button class="filter-btn ${currentFilter==='all'?'active':''}" data-filter="all">All meals</button>` +
+    allTags.map(t =>
+      `<button class="filter-btn ${currentFilter===t?'active':''}" data-filter="${escAttr(t)}">${tagLabel(t)}</button>`
+    ).join('');
+}
+
+function toggleTagDrawer() {
+  const drawer = document.getElementById('tag-drawer');
+  const overlay = document.getElementById('tag-drawer-overlay');
+  const toggle = document.getElementById('tag-drawer-toggle');
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen) {
+    closeTagDrawer();
+  } else {
+    buildTagDrawer();
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+    toggle.classList.add('open');
+    toggle.textContent = '◄';
+  }
+}
+
+function closeTagDrawer() {
+  document.getElementById('tag-drawer').classList.remove('open');
+  document.getElementById('tag-drawer-overlay').classList.remove('open');
+  const toggle = document.getElementById('tag-drawer-toggle');
+  toggle.classList.remove('open');
+  toggle.textContent = '►';
+}
+
 
 function setSort(val) {
   currentSort = val;
@@ -558,6 +618,17 @@ document.getElementById('filter-bar').addEventListener('click', e => {
   currentFilter = btn.dataset.filter;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  renderList();
+});
+
+// Also handle tag drawer filter clicks
+document.getElementById('tag-drawer').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  currentFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  closeTagDrawer();
   renderList();
 });
 
