@@ -96,6 +96,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .meal-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f0efe8; color: #555; }
 .meal-name-input { font-size: 14px; font-weight: 500; padding: 2px 8px; border: 1px solid #378ADD; border-radius: 6px; outline: none; background: #fff; width: 100%; max-width: 320px; }
+.has-recipe-icon { font-size: 12px; opacity: .55; margin-left: 4px; }
 .plan-slot-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .plan-side-input { font-size: 12px; color: #888; background: transparent; border: none; border-bottom: 1px dashed #d0cfc8; outline: none; width: 100%; padding: 1px 0; }
 .plan-side-input:focus { border-bottom-color: #378ADD; color: #333; }
@@ -582,7 +583,7 @@ function renderList() {
         <div class="meal-info">
           ${isOpen
             ? `<input class="meal-name-input" value="${escAttr(m.name)}" onblur="saveMealName('${m.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" />`
-            : `<div class="meal-name">${escH(m.name)}</div>`}
+            : `<div class="meal-name">${escH(m.name)}${m._ingredients && m._ingredients.length ? ' <span class="has-recipe-icon" title="Has ingredients">🥄</span>' : ''}</div>`}
           ${tags.length ? `<div class="meal-tags">${badges}</div>` : ''}
         </div>
         <div class="meal-actions">
@@ -610,6 +611,16 @@ function togglePlanMeal(name, checked) {
     planItems = planItems.filter(p => p.mealName !== name);
   }
   renderPlan();
+}
+
+function recipeCheckHtml(mealName, idx) {
+  const m = meals.find(x => x.name === mealName);
+  const hasIng = m && m._ingredients && m._ingredients.length > 0;
+  if (!hasIng) return '';
+  const checked = planItems[idx] && planItems[idx].printRecipe ? 'checked' : '';
+  return '<label class="no-print" style="display:flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;cursor:pointer;">'
+    + '<input type="checkbox" class="recipe-print-check" ' + checked + ' onchange="planItems[' + idx + '].printRecipe=this.checked" title="Print full recipe" />'
+    + ' Recipe</label>';
 }
 
 function renderPlan() {
@@ -646,13 +657,7 @@ function renderPlan() {
           <span class="plan-slot-name">${escH(mealName)}</span>
           <input class="plan-side-input print-show" placeholder="Side dish…" value="${escAttr(planItems[idx].side||'')}" oninput="planItems[${idx}].side=this.value" />
         </div>
-        ${(function(){
-          const m = meals.find(x => x.name === mealName);
-          const hasIng = m && m._ingredients && m._ingredients.length > 0;
-          if (!hasIng) return '';
-          const checked = planItems[${idx}].printRecipe ? 'checked' : '';
-          return '<label class="no-print" style="display:flex;align-items:center;gap:4px;font-size:12px;color:#666;white-space:nowrap;cursor:pointer;"><input type="checkbox" class="recipe-print-check" ' + checked + ' onchange="planItems[${idx}].printRecipe=this.checked" title="Print full recipe" /> Recipe</label>';
-        })()}
+        ${recipeCheckHtml(mealName, idx)}
         <select class="btn no-print" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
           ${DAYS.map((day,di)=>`<option value="${di}" ${di===d?'selected':''}>${day}</option>`).join('')}
         </select>
