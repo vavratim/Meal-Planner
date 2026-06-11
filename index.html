@@ -95,6 +95,11 @@ header h1 { font-size: 19px; font-weight: 500; }
 .meal-name { font-size: 14px; font-weight: 500; }
 .meal-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f0efe8; color: #555; }
+.meal-name-input { font-size: 14px; font-weight: 500; padding: 2px 8px; border: 1px solid #378ADD; border-radius: 6px; outline: none; background: #fff; width: 100%; max-width: 320px; }
+.plan-slot-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.plan-side-input { font-size: 12px; color: #888; background: transparent; border: none; border-bottom: 1px dashed #d0cfc8; outline: none; width: 100%; padding: 1px 0; }
+.plan-side-input:focus { border-bottom-color: #378ADD; color: #333; }
+.plan-side-input::placeholder { color: #ccc; }
 .meal-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .count-area { display: flex; align-items: center; gap: 4px; }
 .count-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #d0cfc8; background: #fafaf8; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; color: #555; }
@@ -214,6 +219,7 @@ header h1 { font-size: 19px; font-weight: 500; }
   .drag-handle { display: none !important; }
   .plan-day-slot select { display: none !important; }
   .plan-day-slot { border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .plan-side-input { display: block !important; font-size: 12px; color: #555; border: none; border-bottom: none; }
   .plan-day-label { font-size: 13px; color: #333 !important; }
   .plan-slot-name { font-size: 15px; }
 }
@@ -558,7 +564,9 @@ function renderList() {
         <span class="rank">${i+1}</span>
         <input type="checkbox" class="meal-check" ${isChecked?'checked':''} onchange="togglePlanMeal('${escAttr(m.name)}',this.checked)" title="Add to this week's plan" />
         <div class="meal-info">
-          <div class="meal-name">${escH(m.name)}</div>
+          ${isOpen
+            ? `<input class="meal-name-input" value="${escAttr(m.name)}" onblur="saveMealName('${m.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()" />`
+            : `<div class="meal-name">${escH(m.name)}</div>`}
           ${tags.length ? `<div class="meal-tags">${badges}</div>` : ''}
         </div>
         <div class="meal-actions">
@@ -618,7 +626,10 @@ function renderPlan() {
            ondrop="dropOn(event,${idx})"
            ondragend="dragEnd(event)">
         <span class="drag-handle no-print" title="Drag to reorder">⠿</span>
-        <span class="plan-slot-name">${escH(mealName)}</span>
+        <div class="plan-slot-main">
+          <span class="plan-slot-name">${escH(mealName)}</span>
+          <input class="plan-side-input print-show" placeholder="Side dish…" value="${escAttr(planItems[idx].side||'')}" oninput="planItems[${idx}].side=this.value" />
+        </div>
         <select class="btn no-print" style="padding:3px 6px;font-size:12px;" onchange="changeDay(${idx},this.value)">
           ${DAYS.map((day,di)=>`<option value="${di}" ${di===d?'selected':''}>${day}</option>`).join('')}
         </select>
@@ -1085,6 +1096,20 @@ async function addMeal() {
     setStatus(`"${name}" added!`);
   } catch(e) { setStatus('Error: '+e.message, true); }
   btn.disabled=false; btn.textContent='Add';
+}
+
+async function saveMealName(id, newName) {
+  const name = newName.trim();
+  const meal = meals.find(m => m.id === id); if (!meal || !name || name === meal.name) return;
+  const oldName = meal.name;
+  try {
+    await api('PATCH', `meals?id=eq.${id}`, { name });
+    // Update plan items that reference the old name
+    planItems.forEach(p => { if (p.mealName === oldName) p.mealName = name; });
+    meal.name = name;
+    renderList();
+    renderPlan();
+  } catch(e) { setStatus('Error renaming: ' + e.message, true); }
 }
 
 async function adjustCount(id, delta) {
