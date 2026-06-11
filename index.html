@@ -870,7 +870,7 @@ function renderEditor(m) {
     <div id="ing-list-${safeId}">${ingRows}</div>
     <div class="ing-add-row">
       <input class="f-qty" type="text" id="ing-qty-${safeId}" placeholder="Qty" />
-      <select class="ing-input unit f-unit" id="ing-unit-${safeId}">${['', ...allUnits].map(u => `<option value="${escAttr(u)}">${escH(u)}</option>`).join('')}</select>
+      <select class="ing-input unit f-unit" id="ing-unit-${safeId}">${buildUnitOptions('')}</select>
       <input class="f-name" type="text" id="ing-name-${safeId}" placeholder="Ingredient name…" onkeydown="if(event.key==='Enter')addIngredient('${m.id}','${safeId}')" />
       <button onclick="addIngredient('${m.id}','${safeId}')">+ Add</button>
     </div>
@@ -900,6 +900,12 @@ function renderIngList(m) {
 }
 
 // ── Unit select helper ────────────────────────────────────────────────────────
+function buildUnitOptions(selected) {
+  return ['', ...allUnits].map(u =>
+    '<option value="' + escAttr(u) + '"' + (u === (selected||'') ? ' selected' : '') + '>' + escH(u) + '</option>'
+  ).join('');
+}
+
 function unitSelect(currentVal, onchangeJs) {
   const opts = ['', ...allUnits].map(u =>
     `<option value="${escAttr(u)}" ${u === (currentVal||'') ? 'selected' : ''}>${escH(u)}</option>`
