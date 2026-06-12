@@ -109,6 +109,8 @@ header h1 { font-size: 19px; font-weight: 500; }
 .meal-grid { display: flex; flex-direction: column; gap: 4px; }
 .meal-row { background: #fff; border: 1px solid #e8e7e0; border-radius: 10px; overflow: hidden; transition: border-color .15s; }
 .meal-row:hover { border-color: #c0bfb8; }
+.meal-row.recently-used { opacity: .45; }
+.meal-row.recently-used:hover { opacity: .75; }
 .meal-main { display: grid; grid-template-columns: 28px 28px 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; }
 .rank { font-size: 12px; color: #bbb; text-align: right; }
 .meal-check { width: 18px; height: 18px; cursor: pointer; accent-color: #1a1a18; flex-shrink: 0; }
@@ -273,6 +275,16 @@ header h1 { font-size: 19px; font-weight: 500; }
 .ing-modal-name { flex: 1; }
 .ing-modal-empty { font-size: 13px; color: #aaa; padding: 8px 0; }
 .ing-modal-source { font-size: 11px; color: #bbb; margin-top: 2px; padding-left: 90px; }
+.staple-row { display: grid; grid-template-columns: 1fr 70px 90px auto; gap: 8px; align-items: center; padding: 7px 10px; border: 1px solid #e8e7e0; border-radius: 8px; }
+.staple-name { font-size: 13px; font-weight: 500; }
+.staple-input { padding: 4px 7px; border: 1px solid #d0cfc8; border-radius: 6px; font-size: 13px; background: #fff; outline: none; width: 100%; }
+.staple-input:focus { border-color: #378ADD; }
+.staple-del { width: 26px; height: 26px; border-radius: 6px; border: 1px solid #f0cfc8; background: transparent; cursor: pointer; color: #c04040; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.staple-del:hover { background: #fcefef; }
+.staple-add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.staple-add-row input { padding: 7px 10px; border: 1px solid #d0cfc8; border-radius: 8px; font-size: 13px; outline: none; flex: 1; min-width: 100px; }
+.staple-add-row input:focus { border-color: #378ADD; }
+.grocery-staple-note { font-size: 10px; color: #aaa; margin-top: 1px; }
 .btn-green { background: #2a7a3b; color: #fff; border-color: #2a7a3b; }
 .btn-green:hover { background: #236332; }
 .btn-blue { background: #1a5a9a; color: #fff; border-color: #1a5a9a; }
@@ -309,6 +321,25 @@ header h1 { font-size: 19px; font-weight: 500; }
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeUnitsModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staples modal -->
+<div class="modal-overlay" id="staples-modal" onclick="if(event.target===this)closeStaplesModal()">
+  <div class="modal" style="width:500px;">
+    <h3>🧂 Manage staples</h3>
+    <p class="modal-note">Items you always keep on hand. Set a threshold — if a recipe needs more than the threshold, the full amount goes on the shopping list.</p>
+    <div class="modal-scroll" id="staples-list" style="margin-bottom:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div style="font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Add new staple</div>
+    <div class="staple-add-row">
+      <input type="text" id="staple-new-name" placeholder="Name (e.g. ketchup)" />
+      <input type="number" id="staple-new-qty" placeholder="Threshold qty" min="0" step="any" style="width:120px;" />
+      <select id="staple-new-unit" style="padding:7px 8px;border:1px solid #d0cfc8;border-radius:8px;font-size:13px;outline:none;" ></select>
+      <button class="btn btn-primary" onclick="addStaple()">Add</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeStaplesModal()">Done</button>
     </div>
   </div>
 </div>
@@ -388,6 +419,11 @@ header h1 { font-size: 19px; font-weight: 500; }
         <span class="di-label">Show use counts</span>
         <div class="di-toggle" id="counts-toggle"></div>
       </div>
+      <div class="dropdown-item" onclick="toggleRecentMode()">
+        <span class="di-icon">🕐</span>
+        <span class="di-label">Recent meals: hide (vs. gray)</span>
+        <div class="di-toggle on" id="recent-mode-toggle"></div>
+      </div>
       <div class="dropdown-section">Tags</div>
       <div class="dropdown-item" onclick="openTagModal()">
         <span class="di-icon">🏷️</span>
@@ -396,6 +432,10 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-item" onclick="openUnitsModal()">
         <span class="di-icon">📏</span>
         <span class="di-label">Manage units of measure</span>
+      </div>
+      <div class="dropdown-item" onclick="openStaplesModal()">
+        <span class="di-icon">🧂</span>
+        <span class="di-label">Manage staples</span>
       </div>
       <div class="dropdown-section">Meals</div>
       <div class="dropdown-item" onclick="openAddMealModal()">
@@ -464,11 +504,16 @@ const H = {
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
 const DEFAULT_UNITS = ['tsp', 'tbsp', 'cup', 'fl oz', 'oz', 'lb', 'g', 'kg', 'ml', 'l', 'pinch', 'dash', 'can', 'pkg', 'bunch', 'slice', 'clove', 'piece', 'whole'];
 let allUnits = [...DEFAULT_UNITS], unitsRowId = null;
-let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'alpha-asc';
+let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'plan-freq';
+let recentWeeks = 0;        // 0 = disabled
+let recentHide = true;      // true=hide, false=gray out
+let recentMealNames = new Set(); // meal names used in last N weeks
+let mealPlanHistory = [];   // cached plan history
 
 // Plan state: array of {dayIndex, mealName} in display order
 let planItems = [];
 let dragSrc = null;
+let staples = []; // [{id, name, threshold_quantity, threshold_unit}]
 
 async function api(method, path, body) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -532,6 +577,17 @@ async function boot() {
       }
     } catch(e) { console.warn('Could not preload ingredients:', e.message); }
 
+    // Load staples
+    try {
+      staples = await api('GET', 'staples?select=*&order=name.asc') || [];
+    } catch(e) { staples = []; }
+
+    // Load plan history for frequency sort + recent exclusion
+    try {
+      mealPlanHistory = await api('GET', 'meal_plans?select=*&order=created_at.desc') || [];
+    } catch(e) { mealPlanHistory = []; }
+    computePlanFrequency();
+
     buildFilterBar();
     buildAddPills();
     renderList();
@@ -540,6 +596,33 @@ async function boot() {
     setStatus('Error loading: ' + e.message, true);
   }
   document.getElementById('loader').classList.remove('show');
+}
+
+function computePlanFrequency() {
+  // Count appearances in published plans
+  for (const meal of meals) meal._planCount = 0;
+  for (const plan of mealPlanHistory) {
+    for (const item of (plan.plan || [])) {
+      const meal = meals.find(m => m.name === item.mealName);
+      if (meal) meal._planCount = (meal._planCount || 0) + 1;
+    }
+  }
+  // Compute recent meal names based on recentWeeks
+  computeRecentMeals();
+}
+
+function computeRecentMeals() {
+  recentMealNames = new Set();
+  if (!recentWeeks) return;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - recentWeeks * 7);
+  for (const plan of mealPlanHistory) {
+    if (new Date(plan.created_at) >= cutoff) {
+      for (const item of (plan.plan || [])) {
+        recentMealNames.add(item.mealName);
+      }
+    }
+  }
 }
 
 // ── Tag label ─────────────────────────────────────────────────────────────────
@@ -556,10 +639,17 @@ function buildFilterBar() {
       <div class="search-wrap"><input type="text" id="search" placeholder="Search meals…" /></div>
       <div class="search-wrap"><input type="text" id="ing-search" placeholder="Search by ingredient…" /></div>
       <div class="sort-wrap">
+        <label for="recent-weeks-select">Exclude last:</label>
+        <select id="recent-weeks-select" onchange="setRecentWeeks(this.value)">
+          <option value="0" ${recentWeeks===0?'selected':''}>Off</option>
+          ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${recentWeeks===n?'selected':''}>${n} wk${n>1?'s':''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="sort-wrap">
         <label for="sort-select">Sort:</label>
         <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
-          <option value="count-desc" ${currentSort==='count-desc'?'selected':''}>Usage: High → Low</option>
-          <option value="count-asc"  ${currentSort==='count-asc'?'selected':''}>Usage: Low → High</option>
+          <option value="plan-freq-desc" ${currentSort==='plan-freq-desc'?'selected':''}>Plan freq: High → Low</option>
+          <option value="plan-freq-asc"  ${currentSort==='plan-freq-asc'?'selected':''}>Plan freq: Low → High</option>
           <option value="alpha-asc"  ${currentSort==='alpha-asc'?'selected':''}>A → Z</option>
           <option value="alpha-desc" ${currentSort==='alpha-desc'?'selected':''}>Z → A</option>
         </select>
@@ -612,6 +702,12 @@ function setSort(val) {
   renderList();
 }
 
+function setRecentWeeks(val) {
+  recentWeeks = parseInt(val) || 0;
+  computeRecentMeals();
+  renderList();
+}
+
 document.getElementById('filter-bar').addEventListener('click', e => {
   const btn = e.target.closest('.filter-btn');
   if (!btn) return;
@@ -650,11 +746,13 @@ function renderList() {
     const ms = currentFilter === 'all' || (m.season||[]).includes(currentFilter);
     const ss = !search || m.name.toLowerCase().includes(search);
     const is = !ingSearch || (m._ingredients||[]).some(i => i.name.toLowerCase().includes(ingSearch));
+    const recent = recentWeeks && recentMealNames.has(m.name);
+    if (recent && recentHide) return false; // hide mode
     return ms && ss && is;
   });
   filtered = filtered.slice().sort((a,b) => {
-    if (currentSort === 'count-desc') return b.count - a.count || a.name.localeCompare(b.name);
-    if (currentSort === 'count-asc')  return a.count - b.count || a.name.localeCompare(b.name);
+    if (currentSort === 'plan-freq-desc') return (b._planCount||0) - (a._planCount||0) || a.name.localeCompare(b.name);
+    if (currentSort === 'plan-freq-asc')  return (a._planCount||0) - (b._planCount||0) || a.name.localeCompare(b.name);
     if (currentSort === 'alpha-asc')  return a.name.localeCompare(b.name);
     if (currentSort === 'alpha-desc') return b.name.localeCompare(a.name);
     return 0;
@@ -669,6 +767,7 @@ function renderList() {
     const badges = tags.map(t => `<span class="badge">${tagLabel(t)}</span>`).join('');
     const isOpen = openEditorId === m.id;
     const isChecked = checkedNames.has(m.name);
+    const isRecent = recentWeeks && recentMealNames.has(m.name);
     const countHtml = showCounts
       ? `<div class="count-area">
            <button class="count-btn" onclick="adjustCount('${m.id}',-1)">−</button>
@@ -676,7 +775,7 @@ function renderList() {
            <button class="count-btn" onclick="adjustCount('${m.id}',1)">+</button>
          </div>`
       : '';
-    return `<div class="meal-row" id="row-${m.id}">
+    return `<div class="meal-row ${isRecent ? 'recently-used' : ''}" id="row-${m.id}">
       <div class="meal-main">
         <span class="rank">${i+1}</span>
         <input type="checkbox" class="meal-check" ${isChecked?'checked':''} onchange="togglePlanMeal('${escAttr(m.name)}',this.checked)" title="Add to this week's plan" />
@@ -894,36 +993,15 @@ async function viewIngredientList() {
     return;
   }
 
-  // Combine by name + unit — sum quantities, track which meals use each
-  const combined = {};
-  for (const ing of allIng) {
-    const normName = ing.name.trim().toLowerCase();
-    const normUnit = (ing.unit || '').trim().toLowerCase();
-    const key = normName + '||' + normUnit;
-    if (!combined[key]) {
-      combined[key] = { name: ing.name.trim(), unit: ing.unit || '', totalQty: null, meals: [] };
-    }
-    const entry = combined[key];
-    if (ing.quantity != null && !isNaN(Number(ing.quantity))) {
-      entry.totalQty = (entry.totalQty || 0) + Number(ing.quantity);
-    }
-    if (!entry.meals.includes(ing.mealName)) entry.meals.push(ing.mealName);
-  }
-
-  // Sort alphabetically
-  const sorted = Object.values(combined).sort((a, b) => a.name.localeCompare(b.name));
-
-  el.innerHTML = sorted.map(entry => {
-    const qty = entry.totalQty != null ? entry.totalQty : '';
-    const unit = entry.unit || '';
-    const qtyStr = [qty, unit].filter(v => v !== '').join(' ');
-    const mealStr = entry.meals.join(', ');
+  const items = combineIngredients(allIng);
+  el.innerHTML = items.map(item => {
+    const stapleTag = item.stapleNote ? ' <span style="font-size:10px;color:#2a7a3b;background:#eaf3de;padding:1px 6px;border-radius:999px;">staple</span>' : '';
     return `<div class="ing-modal-row" style="flex-direction:column;align-items:flex-start;gap:2px;">
-      <div style="display:flex;gap:10px;width:100%;">
-        <span class="ing-modal-qty">${escH(qtyStr)}</span>
-        <span class="ing-modal-name">${escH(entry.name)}</span>
+      <div style="display:flex;gap:10px;width:100%;align-items:center;">
+        <span class="ing-modal-qty">${escH(item.qtyStr)}</span>
+        <span class="ing-modal-name">${escH(item.name)}${stapleTag}</span>
       </div>
-      <div class="ing-modal-source">${escH(mealStr)}</div>
+      <div class="ing-modal-source">${escH(item.meals.join(', '))}</div>
     </div>`;
   }).join('');
 
@@ -932,44 +1010,170 @@ async function viewIngredientList() {
 
 function closeIngModal() { document.getElementById('ing-modal').classList.remove('show'); }
 
+// ── Unit conversion engine ───────────────────────────────────────────────────
+// Volume conversions to tsp (base unit)
+const VOL_TO_TSP = { tsp:1, tbsp:3, 'fl oz':6, cup:48, l:202.884, ml:0.202884 };
+// Weight conversions to oz (base unit)
+const WGT_TO_OZ  = { oz:1, lb:16, g:0.035274, kg:35.274 };
+
+function unitCategory(u) {
+  if (!u) return null;
+  const l = u.toLowerCase().trim();
+  if (VOL_TO_TSP[l] != null) return 'volume';
+  if (WGT_TO_OZ[l]  != null) return 'weight';
+  return null;
+}
+
+function toBase(qty, unit) {
+  if (!unit || qty == null) return null;
+  const l = unit.toLowerCase().trim();
+  if (VOL_TO_TSP[l] != null) return { val: qty * VOL_TO_TSP[l], cat: 'volume' };
+  if (WGT_TO_OZ[l]  != null) return { val: qty * WGT_TO_OZ[l],  cat: 'weight' };
+  return null;
+}
+
+function formatVolume(tsp) {
+  // Pick the cleanest representation
+  const thresholds = [
+    { unit: 'cup',    base: 48  },
+    { unit: 'fl oz',  base: 6   },
+    { unit: 'tbsp',   base: 3   },
+    { unit: 'tsp',    base: 1   },
+  ];
+  for (const t of thresholds) {
+    const val = tsp / t.base;
+    if (val >= 0.5) return { qty: +val.toFixed(2), unit: t.unit };
+  }
+  return { qty: +tsp.toFixed(2), unit: 'tsp' };
+}
+
+function formatWeight(oz) {
+  if (oz >= 16) return { qty: +(oz/16).toFixed(2), unit: 'lb' };
+  if (oz >= 1)  return { qty: +oz.toFixed(2),       unit: 'oz' };
+  return { qty: +(oz / 0.035274).toFixed(1), unit: 'g' };
+}
+
+function formatQty(baseVal, cat) {
+  if (cat === 'volume') return formatVolume(baseVal);
+  if (cat === 'weight') return formatWeight(baseVal);
+  return null;
+}
+
+function fmtNum(n) {
+  // Turn 1.50 -> 1.5, 0.25 -> 1/4 style where nice
+  const fracs = [[0.125,'⅛'],[0.25,'¼'],[0.333,'⅓'],[0.5,'½'],[0.667,'⅔'],[0.75,'¾']];
+  const whole = Math.floor(n);
+  const frac = n - whole;
+  for (const [val, sym] of fracs) {
+    if (Math.abs(frac - val) < 0.02) {
+      return whole ? whole + ' ' + sym : sym;
+    }
+  }
+  const rounded = +n.toFixed(2);
+  return rounded === Math.floor(rounded) ? String(Math.floor(rounded)) : String(rounded);
+}
+
+// Combine ingredients: convert units, sum, apply staples logic
+function combineIngredients(allIng) {
+  // Group by normalised name, track per-unit totals
+  const groups = {}; // normName -> { displayName, units: { cat||unit -> {baseVal,cat,unit,meals} } }
+  for (const ing of allIng) {
+    const normName = ing.name.trim().toLowerCase();
+    if (!groups[normName]) groups[normName] = { displayName: ing.name.trim(), units: {} };
+    const g = groups[normName];
+    const qty = ing.quantity != null ? Number(ing.quantity) : null;
+    const unit = (ing.unit || '').trim();
+    const cat = unitCategory(unit);
+    const key = cat || unit.toLowerCase() || '__nounit__';
+    if (!g.units[key]) g.units[key] = { baseVal: 0, cat, unit, meals: [], hasQty: false };
+    const entry = g.units[key];
+    if (qty != null && cat) {
+      const b = toBase(qty, unit);
+      if (b) { entry.baseVal += b.val; entry.hasQty = true; }
+    } else if (qty != null) {
+      entry.baseVal += qty; entry.hasQty = true; entry.unit = unit;
+    }
+    if (!entry.meals.includes(ing.mealName)) entry.meals.push(ing.mealName);
+  }
+
+  // Now apply staples and format
+  const results = [];
+  for (const [normName, g] of Object.entries(groups)) {
+    for (const [key, entry] of Object.entries(g.units)) {
+      // Check if staple
+      const staple = staples.find(s => s.name.trim().toLowerCase() === normName);
+      let isStaple = false;
+      let stapleNote = '';
+      if (staple) {
+        isStaple = true;
+        const thr = staple.threshold_quantity;
+        const thrUnit = staple.threshold_unit || '';
+        if (thr != null && entry.hasQty) {
+          const thrBase = toBase(thr, thrUnit);
+          const thrCat = unitCategory(thrUnit);
+          // Only compare if same category
+          if (thrBase && entry.cat && thrCat === entry.cat) {
+            if (entry.baseVal <= thrBase.val) {
+              // Under threshold — skip entirely
+              continue;
+            }
+          }
+          // Over threshold — show total (not difference)
+          stapleNote = 'staple';
+        } else {
+          // No threshold set or no qty — skip staple
+          continue;
+        }
+      }
+
+      // Format quantity
+      let qtyStr = '';
+      if (entry.hasQty) {
+        if (entry.cat) {
+          const fmt = formatQty(entry.baseVal, entry.cat);
+          qtyStr = fmtNum(fmt.qty) + ' ' + fmt.unit;
+        } else {
+          qtyStr = fmtNum(entry.baseVal) + (entry.unit ? ' ' + entry.unit : '');
+        }
+      }
+
+      results.push({
+        name: g.displayName,
+        qtyStr,
+        meals: entry.meals,
+        stapleNote
+      });
+    }
+  }
+
+  // Sort alpha
+  results.sort((a, b) => a.name.localeCompare(b.name));
+  return results;
+}
+
 async function buildGroceryList() {
-  // Collect all ingredients for planned meals
   const mealNames = [...new Set(planItems.map(p => p.mealName))];
   const allIng = [];
-
   for (const name of mealNames) {
     const meal = meals.find(m => m.name === name);
     if (!meal) continue;
     if (!meal._ingredients) await loadIngredients(meal.id);
-    for (const ing of (meal._ingredients || [])) {
-      allIng.push({ ...ing, mealName: name });
-    }
+    for (const ing of (meal._ingredients || [])) allIng.push({ ...ing, mealName: name });
   }
-
   if (!allIng.length) {
     document.getElementById('grocery-content').innerHTML =
       '<p style="font-size:13px;color:#888;">No ingredients added to any of this week&#39;s meals yet.</p>';
     return;
   }
-
-  // Group by meal name
-  const byMeal = {};
-  for (const ing of allIng) {
-    if (!byMeal[ing.mealName]) byMeal[ing.mealName] = [];
-    byMeal[ing.mealName].push(ing);
-  }
-
-  const html = Object.entries(byMeal).map(([mealName, ings]) => {
-    const rows = ings.map(ing => {
-      const qty  = ing.quantity != null ? ing.quantity : '';
-      const unit = ing.unit || '';
-      const qtyStr = [qty, unit].filter(Boolean).join(' ');
-      return `<div class="grocery-item"><span class="grocery-qty">${escH(qtyStr)}</span><span class="grocery-name">${escH(ing.name)}</span></div>`;
-    }).join('');
-    return `<div class="grocery-section"><h3>${escH(mealName)}</h3>${rows}</div>`;
-  }).join('');
-
-  document.getElementById('grocery-content').innerHTML = html;
+  const items = combineIngredients(allIng);
+  const rows = items.map(item =>
+    `<div class="grocery-item">
+       <span class="grocery-qty">${escH(item.qtyStr)}</span>
+       <div><span class="grocery-name">${escH(item.name)}</span>
+       <div style="font-size:10px;color:#aaa;">${escH(item.meals.join(', '))}${item.stapleNote ? ' · staple' : ''}</div></div>
+     </div>`
+  ).join('');
+  document.getElementById('grocery-content').innerHTML = `<div class="grocery-section">${rows}</div>`;
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -1135,6 +1339,80 @@ async function saveUnits() {
     return;
   }
   try { await api('PATCH', `units?id=eq.${unitsRowId}`, { names: allUnits }); } catch(e) {}
+}
+
+// ── Staples CRUD ─────────────────────────────────────────────────────────────
+function openStaplesModal() {
+  document.getElementById('dropdown').classList.add('hidden');
+  renderStaplesModal();
+  // Populate unit dropdown
+  const sel = document.getElementById('staple-new-unit');
+  sel.innerHTML = '<option value="">No unit</option>' + allUnits.map(u =>
+    `<option value="${escAttr(u)}">${escH(u)}</option>`).join('');
+  document.getElementById('staples-modal').classList.add('show');
+}
+function closeStaplesModal() { document.getElementById('staples-modal').classList.remove('show'); }
+
+function renderStaplesModal() {
+  const list = document.getElementById('staples-list');
+  if (!staples.length) {
+    list.innerHTML = '<div style="font-size:13px;color:#aaa;">No staples yet.</div>';
+    return;
+  }
+  list.innerHTML = staples.map(s => {
+    const unitOpts = ['', ...allUnits].map(u =>
+      `<option value="${escAttr(u)}" ${(s.threshold_unit||'')=== u?'selected':''}>${escH(u)}</option>`).join('');
+    return `<div class="staple-row">
+      <span class="staple-name">${escH(s.name)}</span>
+      <input class="staple-input" type="number" min="0" step="any" value="${s.threshold_quantity!=null?s.threshold_quantity:''}"
+             placeholder="Qty" onblur="updateStaple('${s.id}','threshold_quantity',this.value)" />
+      <select class="staple-input" onchange="updateStaple('${s.id}','threshold_unit',this.value)">${unitOpts}</select>
+      <button class="staple-del" onclick="deleteStaple('${s.id}','${escAttr(s.name)}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function addStaple() {
+  const name = document.getElementById('staple-new-name').value.trim();
+  const qty  = document.getElementById('staple-new-qty').value.trim();
+  const unit = document.getElementById('staple-new-unit').value.trim();
+  if (!name) { document.getElementById('staple-new-name').focus(); return; }
+  if (staples.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+    setStatus(`"${name}" is already a staple.`); return;
+  }
+  try {
+    const result = await api('POST', 'staples', {
+      name,
+      threshold_quantity: qty ? parseFloat(qty) : null,
+      threshold_unit: unit || null
+    });
+    staples.push(result[0]);
+    staples.sort((a,b) => a.name.localeCompare(b.name));
+    document.getElementById('staple-new-name').value = '';
+    document.getElementById('staple-new-qty').value = '';
+    document.getElementById('staple-new-unit').value = '';
+    renderStaplesModal();
+  } catch(e) { setStatus('Error adding staple: ' + e.message, true); }
+}
+
+async function updateStaple(id, field, value) {
+  const staple = staples.find(s => s.id === id); if (!staple) return;
+  let parsed = value.trim() || null;
+  if (field === 'threshold_quantity') parsed = parsed ? parseFloat(parsed) : null;
+  if (staple[field] === parsed) return;
+  try {
+    await api('PATCH', `staples?id=eq.${id}`, { [field]: parsed });
+    staple[field] = parsed;
+  } catch(e) { setStatus('Error updating staple: ' + e.message, true); }
+}
+
+async function deleteStaple(id, name) {
+  if (!confirm(`Remove "${name}" from staples?`)) return;
+  try {
+    await api('DELETE', `staples?id=eq.${id}`);
+    staples = staples.filter(s => s.id !== id);
+    renderStaplesModal();
+  } catch(e) { setStatus('Error deleting staple: ' + e.message, true); }
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
@@ -1349,6 +1627,12 @@ function toggleCounts() {
   renderList();
 }
 
+function toggleRecentMode() {
+  recentHide = !recentHide;
+  document.getElementById('recent-mode-toggle').classList.toggle('on', recentHide);
+  renderList();
+}
+
 // ── Tag management modal ──────────────────────────────────────────────────────
 function openTagModal() {
   document.getElementById('dropdown').classList.add('hidden');
@@ -1421,6 +1705,7 @@ function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot
 // Add meal now in options menu modal
 document.getElementById('new-global-tag').addEventListener('keydown', e=>{ if(e.key==='Enter') addGlobalTag(); });
 document.getElementById('new-unit-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addUnit(); });
+document.getElementById('staple-new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addStaple(); });
 
 boot();
 </script>
