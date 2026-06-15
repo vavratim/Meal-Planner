@@ -479,7 +479,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-86</span>
+        <span class="di-label" style="color:#aaa;">Version rev-87</span>
       </div>
     </div>
   </div>
@@ -1047,25 +1047,14 @@ function removePlanDay(dayIdx) {
   scheduleDraftSave();
 }
 
-function removePlanItem(idx) {
-  const name = planItems[idx]?.mealName;
-  planItems.splice(idx, 1);
-  renderPlan();
-  renderList(); // uncheck the checkbox
-}
-
-function changeDay(idx, newDay) {
-  if (planItems[idx]) planItems[idx].dayIndex = parseInt(newDay);
-  renderPlan();
-}
-
 function clearPlan() {
-  if (!planItems.length) return;
-  if (!confirm('Clear this week\'s meal plan?')) return;
-  planItems = [];
+  if (!confirm("Clear this week's meal plan?")) return;
+  initPlanDays();
   renderPlan();
   renderList();
+  scheduleDraftSave();
 }
+
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
 function dragStart(e, dayIdx, slotIdx) {
@@ -1888,7 +1877,7 @@ async function saveMealName(id, newName) {
   try {
     await api('PATCH', `meals?id=eq.${id}`, { name });
     // Update plan items that reference the old name
-    planItems.forEach(p => { if (p.mealName === oldName) p.mealName = name; });
+    for (const day of planDays) { for (const slot of day.slots) { if (slot.mealName === oldName) slot.mealName = name; } }
     meal.name = name;
     renderList();
     renderPlan();
@@ -1912,7 +1901,7 @@ async function deleteMeal(id) {
   try {
     await api('DELETE', `meals?id=eq.${id}`);
     meals=meals.filter(m=>m.id!==id);
-    planItems=planItems.filter(p=>p.mealName!==meal.name);
+    for (const day of planDays) { day.slots = day.slots.filter(s => s.mealName !== meal.name); }
     renderPlan(); renderList();
   } catch(e) { setStatus('Error: '+e.message, true); }
 }
