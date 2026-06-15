@@ -69,8 +69,9 @@ header h1 { font-size: 19px; font-weight: 500; }
 .plan-day-slot.slot-note { background: #f5f0ff; border-color: #d8cff0; }
 .plan-day-slot.drag-over { background: #e8f4ff; border-color: #378ADD; }
 .dragging { opacity: .35; }
-.drag-handle { cursor: grab; color: #ccc; font-size: 13px; user-select: none; flex-shrink: 0; padding-top: 1px; }
-.drag-handle:active { cursor: grabbing; }
+.drag-handle { cursor: grab; color: #ccc; font-size: 13px; user-select: none; flex-shrink: 0; padding: 6px 8px; margin: -6px -4px; touch-action: none; }
+.drag-handle:active { cursor: grabbing; color: #888; }
+@media (max-width: 768px) { .drag-handle { font-size: 18px; padding: 10px 12px; margin: -10px -8px; } }
 .plan-slot-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .plan-slot-name { font-size: 13px; font-weight: 500; line-height: 1.3; }
 .plan-side-input { font-size: 11px; color: #999; background: transparent; border: none; border-bottom: 1px dashed #d0cfc8; outline: none; width: 100%; padding: 1px 0; margin-top: 2px; }
@@ -475,7 +476,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-81</span>
+        <span class="di-label" style="color:#aaa;">Version rev-82</span>
       </div>
     </div>
   </div>
@@ -490,7 +491,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <p id="print-date"></p>
     </div>
     <div class="plan-header">
-      <h2>📅 This week's plan</h2>
+      <h2>📅 This week's plan <span id="draft-badge" style="display:none;font-size:11px;color:#aaa;font-weight:400;background:#f0efe8;padding:2px 8px;border-radius:999px;margin-left:6px;">synced</span></h2>
       <div class="plan-header-actions">
         <button class="btn" onclick="addPlanDay()">+ Day</button>
         <button class="btn btn-danger" onclick="clearPlan()">Clear</button>
@@ -541,10 +542,13 @@ let recentMealNames = new Set(); // meal names used in last N weeks
 let mealPlanHistory = [];   // cached plan history
 
 // Plan state: array of {date: 'YYYY-MM-DD', label: 'Mon Jun 16', slots: [{type:'meal'|'note', mealName, note, side, printRecipe}]}
-// planDays always has 7 days, always sorted by date
 let planDays = [];
 let dragSrc = null; // {dayIdx, slotIdx}
 let staples = []; // [{id, name, threshold_quantity, threshold_unit}]
+let draftSaveTimer = null;
+let realtimeChannel = null;
+let draftRowId = null;
+let isSavingDraft = false;
 
 function todayStr() {
   const d = new Date();
@@ -573,6 +577,7 @@ function addPlanDay() {
   const dateStr = d.toISOString().slice(0,10);
   planDays.push({ date: dateStr, label: dateLabel(dateStr), slots: [] });
   renderPlan();
+  scheduleDraftSave();
 }
 
 function sortPlanDays() {
@@ -663,7 +668,21 @@ async function boot() {
     } catch(e) { mealPlanHistory = []; }
     computePlanFrequency();
 
-    initPlanDays();
+    // Load draft plan
+    try {
+      const drafts = await api('GET', 'draft_plan?select=*');
+      if (drafts && drafts.length && drafts[0].plan && drafts[0].plan.length) {
+        draftRowId = drafts[0].id;
+        planDays = drafts[0].plan;
+      } else {
+        initPlanDays();
+        if (drafts && drafts.length) draftRowId = drafts[0].id;
+      }
+    } catch(e) { initPlanDays(); }
+
+    // Subscribe to real-time draft changes
+    subscribeToDraft();
+
     buildFilterBar();
     buildAddPills();
     renderList();
@@ -923,6 +942,7 @@ function togglePlanMeal(name, checked) {
   }
   renderPlan();
   renderList();
+  scheduleDraftSave();
 }
 
 function addNoteSlot(dayIdx) {
@@ -933,6 +953,7 @@ function addNoteSlot(dayIdx) {
     const inputs = document.querySelectorAll('.plan-note-input');
     if (inputs.length) inputs[inputs.length-1].focus();
   }, 50);
+  scheduleDraftSave();
 }
 
 function recipeCheckHtml(dayIdx, slotIdx) {
@@ -1012,6 +1033,7 @@ function removePlanSlot(dayIdx, slotIdx) {
   planDays[dayIdx].slots.splice(slotIdx, 1);
   renderPlan();
   renderList();
+  scheduleDraftSave();
 }
 
 function removePlanDay(dayIdx) {
@@ -1019,6 +1041,7 @@ function removePlanDay(dayIdx) {
   planDays.splice(dayIdx, 1);
   renderPlan();
   renderList();
+  scheduleDraftSave();
 }
 
 function removePlanItem(idx) {
@@ -1066,6 +1089,7 @@ function execDrop(targetDayIdx, targetSlotIdx) {
   planDays[targetDayIdx].slots.splice(tSlot, 0, item);
   dragSrc = null;
   renderPlan();
+  scheduleDraftSave();
 }
 
 // Set up drag event delegation on plan-days container
@@ -1127,6 +1151,7 @@ async function publishOnly() {
   try {
     await api('POST', 'meal_plans', { created_at: new Date().toISOString(), plan: planDays });
     setStatus('Plan published! ✓');
+    document.getElementById('draft-badge').style.display = 'none';
     // Refresh history for frequency counts
     mealPlanHistory = await api('GET', 'meal_plans?select=*&order=created_at.desc') || [];
     computePlanFrequency();
@@ -1628,6 +1653,58 @@ async function deleteStaple(id, name) {
     staples = staples.filter(s => s.id !== id);
     renderStaplesModal();
   } catch(e) { setStatus('Error deleting staple: ' + e.message, true); }
+}
+
+// ── Draft plan auto-save & real-time sync ────────────────────────────────────
+function scheduleDraftSave() {
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveDraft, 800);
+}
+
+async function saveDraft() {
+  if (isSavingDraft) return;
+  isSavingDraft = true;
+  try {
+    if (draftRowId) {
+      await api('PATCH', `draft_plan?id=eq.${draftRowId}`, { plan: planDays, updated_at: new Date().toISOString() });
+    } else {
+      const r = await api('POST', 'draft_plan', { id: 1, plan: planDays });
+      if (r && r[0]) draftRowId = r[0].id;
+    }
+  } catch(e) { console.warn('Draft save failed:', e.message); }
+  isSavingDraft = false;
+}
+
+function subscribeToDraft() {
+  // Use Supabase Realtime REST endpoint via EventSource (SSE)
+  try {
+    const url = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
+    const ws = new WebSocket(url);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ topic: 'realtime:public:draft_plan', event: 'phx_join', payload: {}, ref: '1' }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'UPDATE' || msg.event === 'INSERT') {
+          const newPlan = msg.payload?.record?.plan;
+          if (newPlan && !isSavingDraft) {
+            planDays = newPlan;
+            renderPlan();
+            renderList();
+            showDraftBadge();
+          }
+        }
+      } catch(err) {}
+    };
+    ws.onerror = () => {}; // silent fail — draft still saves, just no live sync
+    realtimeChannel = ws;
+  } catch(e) {}
+}
+
+function showDraftBadge() {
+  const badge = document.getElementById('draft-badge');
+  if (badge) { badge.style.display = 'inline'; setTimeout(() => badge.style.display = 'none', 2000); }
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
