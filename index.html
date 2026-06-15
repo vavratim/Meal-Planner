@@ -476,7 +476,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-82</span>
+        <span class="di-label" style="color:#aaa;">Version rev-83</span>
       </div>
     </div>
   </div>
@@ -1676,30 +1676,35 @@ async function saveDraft() {
 }
 
 function subscribeToDraft() {
-  // Use Supabase Realtime REST endpoint via EventSource (SSE)
-  try {
-    const url = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
-    const ws = new WebSocket(url);
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ topic: 'realtime:public:draft_plan', event: 'phx_join', payload: {}, ref: '1' }));
-    };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.event === 'UPDATE' || msg.event === 'INSERT') {
-          const newPlan = msg.payload?.record?.plan;
-          if (newPlan && !isSavingDraft) {
-            planDays = newPlan;
-            renderPlan();
-            renderList();
-            showDraftBadge();
-          }
-        }
-      } catch(err) {}
-    };
-    ws.onerror = () => {}; // silent fail — draft still saves, just no live sync
-    realtimeChannel = ws;
-  } catch(e) {}
+  // Poll every 4 seconds for changes from another user
+  let lastUpdatedAt = null;
+
+  async function pollDraft() {
+    if (isSavingDraft) return; // don't clobber our own in-flight save
+    try {
+      const rows = await api('GET', 'draft_plan?select=id,updated_at,plan');
+      if (!rows || !rows.length) return;
+      const row = rows[0];
+      // Only update if the server version is newer than what we last saw
+      if (lastUpdatedAt && row.updated_at === lastUpdatedAt) return;
+      if (lastUpdatedAt !== null) {
+        // A real remote update — apply it
+        draftRowId = row.id;
+        planDays = row.plan || planDays;
+        renderPlan();
+        renderList();
+        showDraftBadge();
+      } else {
+        // First poll — just record the timestamp, plan already loaded on boot
+        draftRowId = row.id;
+      }
+      lastUpdatedAt = row.updated_at;
+    } catch(e) {}
+  }
+
+  // Start polling
+  setInterval(pollDraft, 4000);
+  pollDraft(); // run once immediately to capture baseline timestamp
 }
 
 function showDraftBadge() {
