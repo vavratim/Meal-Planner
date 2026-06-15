@@ -479,7 +479,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-84</span>
+        <span class="di-label" style="color:#aaa;">Version rev-85</span>
       </div>
     </div>
   </div>
@@ -1218,7 +1218,8 @@ async function buildRecipePages() {
 }
 
 async function viewIngredientList() {
-  if (!planItems.length) { setStatus('Add some meals to the plan first.'); return; }
+  const hasContent = planDays.some(d => d.slots.some(s => s.type === 'meal'));
+  if (!hasContent) { setStatus('Add some meals to the plan first.'); return; }
   const mealNames = [...new Set(allPlanSlots().filter(s=>s.type==='meal').map(s => s.mealName))];
   const allIng = [];
   for (const name of mealNames) {
