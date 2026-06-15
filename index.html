@@ -479,7 +479,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-85</span>
+        <span class="di-label" style="color:#aaa;">Version rev-86</span>
       </div>
     </div>
   </div>
@@ -984,11 +984,11 @@ function renderPlan() {
         ? `<span class="plan-slot-name">${escH(slot.mealName)}</span>`
         : `<input class="plan-note-input" placeholder="Leftovers / eating out…"
                value="${escAttr(slot.note||'')}"
-               oninput="planDays[${dayIdx}].slots[${slotIdx}].note=this.value" />`;
+               oninput="planDays[${dayIdx}].slots[${slotIdx}].note=this.value;scheduleDraftSave()" />`;
       const sideHtml = isMeal
         ? `<input class="plan-side-input" placeholder="Side dish…"
                value="${escAttr(slot.side||'')}"
-               oninput="planDays[${dayIdx}].slots[${slotIdx}].side=this.value" />`
+               oninput="planDays[${dayIdx}].slots[${slotIdx}].side=this.value;scheduleDraftSave()" />`
         : '';
       return `<div class="${slotClass}" draggable="true"
            data-day="${dayIdx}" data-slot="${slotIdx}"
