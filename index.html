@@ -58,7 +58,9 @@ header h1 { font-size: 19px; font-weight: 500; }
 .plan-row { display: table-row; }
 .plan-row:not(:last-child) .plan-cell { border-bottom: 1px solid #f0efe8; }
 .plan-cell { display: table-cell; vertical-align: top; padding: 8px 10px; }
-.plan-cell-day { width: 64px; min-width: 64px; font-size: 12px; font-weight: 600; color: #555; white-space: nowrap; padding-top: 12px; border-right: 1px solid #f0efe8; }
+.plan-cell-day { width: 70px; min-width: 70px; font-size: 12px; font-weight: 600; color: #555; white-space: nowrap; padding-top: 10px; border-right: 1px solid #f0efe8; }
+.plan-day-remove { width: 14px; height: 14px; border: none; background: transparent; cursor: pointer; color: #ccc; font-size: 10px; padding: 0; vertical-align: middle; margin-left: 3px; }
+.plan-day-remove:hover { color: #c04040; }
 .plan-cell-slots { vertical-align: top; }
 .plan-cell-actions { width: 80px; min-width: 80px; vertical-align: top; padding-top: 10px; white-space: nowrap; }
 .plan-day-slots { display: flex; flex-direction: column; gap: 4px; min-height: 36px; padding: 2px 0; }
@@ -473,7 +475,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-80</span>
+        <span class="di-label" style="color:#aaa;">Version rev-81</span>
       </div>
     </div>
   </div>
@@ -560,17 +562,8 @@ function initPlanDays() {
   planDays = [];
   const today = new Date();
   today.setHours(12,0,0,0);
-  const dow = today.getDay(); // 0=Sun, 5=Fri, 6=Sat
-  // Days until NEXT Friday (always at least 7 days out if today is Friday)
-  // If Sat(6): 6 days to next Fri. If Sun(0): 5 days. Mon(1): 4. Tue(2): 3. Wed(3): 2. Thu(4): 1. Fri(5): 7.
-  const daysToNextFri = dow === 5 ? 7 : (5 - dow + 7) % 7;
-  const numDays = daysToNextFri + 1; // today through next Friday inclusive
-  for (let i = 0; i < numDays; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const dateStr = d.toISOString().slice(0,10);
-    planDays.push({ date: dateStr, label: dateLabel(dateStr), slots: [] });
-  }
+  const dateStr = today.toISOString().slice(0,10);
+  planDays.push({ date: dateStr, label: dateLabel(dateStr), slots: [] });
 }
 
 function addPlanDay() {
@@ -857,7 +850,13 @@ function renderList() {
     if (recent && recentHide) return false; // hide mode
     return ms && ss && is;
   });
+  const checkedSet = new Set(allPlanSlots().filter(s=>s.type==='meal').map(s=>s.mealName));
   filtered = filtered.slice().sort((a,b) => {
+    // Checked meals always float to top
+    const aChecked = checkedSet.has(a.name) ? 0 : 1;
+    const bChecked = checkedSet.has(b.name) ? 0 : 1;
+    if (aChecked !== bChecked) return aChecked - bChecked;
+    // Then apply selected sort
     if (currentSort === 'plan-freq-desc') return (b._planCount||0) - (a._planCount||0) || a.name.localeCompare(b.name);
     if (currentSort === 'plan-freq-asc')  return (a._planCount||0) - (b._planCount||0) || a.name.localeCompare(b.name);
     if (currentSort === 'alpha-asc')  return a.name.localeCompare(b.name);
@@ -909,7 +908,12 @@ function togglePlanMeal(name, checked) {
   if (checked) {
     const alreadyIn = planDays.some(d => d.slots.some(s => s.type === 'meal' && s.mealName === name));
     if (!alreadyIn) {
-      const target = planDays.find(d => d.slots.length === 0) || planDays[0];
+      // Find first day with no meal slots yet, else add a new day
+      let target = planDays.find(d => !d.slots.some(s => s.type === 'meal'));
+      if (!target) {
+        addPlanDay();
+        target = planDays[planDays.length - 1];
+      }
       target.slots.push({ type: 'meal', mealName: name, side: '', printRecipe: false });
     }
   } else {
@@ -984,8 +988,12 @@ function renderPlan() {
       </label>`;
     }).join('');
 
+    const canRemove = planDays.length > 1;
     return `<div class="plan-row">
-      <div class="plan-cell plan-cell-day">${escH(day.label)}</div>
+      <div class="plan-cell plan-cell-day">
+        ${escH(day.label)}
+        ${canRemove ? `<button class="plan-day-remove no-print" onclick="removePlanDay(${dayIdx})" title="Remove day">✕</button>` : ''}
+      </div>
       <div class="plan-cell plan-cell-slots">
         <div class="plan-day-slots" data-day="${dayIdx}">${slotsHtml}</div>
       </div>
@@ -1002,6 +1010,13 @@ function renderPlan() {
 function removePlanSlot(dayIdx, slotIdx) {
   if (!planDays[dayIdx]) return;
   planDays[dayIdx].slots.splice(slotIdx, 1);
+  renderPlan();
+  renderList();
+}
+
+function removePlanDay(dayIdx) {
+  if (planDays.length <= 1) return;
+  planDays.splice(dayIdx, 1);
   renderPlan();
   renderList();
 }
