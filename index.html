@@ -465,7 +465,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-76</span>
+        <span class="di-label" style="color:#aaa;">Version rev-77</span>
       </div>
       <div class="dropdown-section">Meal Plans</div>
       <div class="dropdown-item" onclick="openHistoryModal()">
@@ -942,23 +942,21 @@ function recipeCheckHtml(dayIdx, slotIdx) {
 }
 
 function renderPlan() {
-  const empty = document.getElementById('plan-empty');
   const daysEl = document.getElementById('plan-days');
-  empty.style.display = 'none';
-  daysEl.style.display = '';
+  if (!daysEl) return;
 
-  setupPlanDragListeners();
   daysEl.innerHTML = planDays.map((day, dayIdx) => {
     const slotsHtml = day.slots.map((slot, slotIdx) => {
       const isMeal = slot.type === 'meal';
-      const isNote = slot.type === 'note';
-      const slotClass = isNote ? 'plan-day-slot slot-note' : 'plan-day-slot';
+      const slotClass = isMeal ? 'plan-day-slot' : 'plan-day-slot slot-note';
       const nameHtml = isMeal
         ? `<span class="plan-slot-name">${escH(slot.mealName)}</span>`
-        : `<input class="plan-note-input" placeholder="Leftovers, eating out, etc…" value="${escAttr(slot.note||'')}"
+        : `<input class="plan-note-input" placeholder="Leftovers / eating out…"
+               value="${escAttr(slot.note||'')}"
                oninput="planDays[${dayIdx}].slots[${slotIdx}].note=this.value" />`;
       const sideHtml = isMeal
-        ? `<input class="plan-side-input" placeholder="Side dish…" value="${escAttr(slot.side||'')}"
+        ? `<input class="plan-side-input" placeholder="Side…"
+               value="${escAttr(slot.side||'')}"
                oninput="planDays[${dayIdx}].slots[${slotIdx}].side=this.value" />`
         : '';
       return `<div class="${slotClass}" draggable="true"
@@ -966,25 +964,24 @@ function renderPlan() {
            ondragstart="dragStart(event,${dayIdx},${slotIdx})"
            ondragend="dragEnd(event)">
         <span class="drag-handle no-print">⠿</span>
-        <div class="plan-slot-main">
-          ${nameHtml}
-          ${sideHtml}
-        </div>
-        ${isMeal ? recipeCheckHtml(dayIdx, slotIdx) : ''}
-        <button class="plan-slot-remove no-print" onclick="removePlanSlot(${dayIdx},${slotIdx})" title="Remove">✕</button>
+        <div class="plan-slot-main">${nameHtml}${sideHtml}</div>
+        <button class="plan-slot-remove no-print"
+           onclick="removePlanSlot(${dayIdx},${slotIdx})">✕</button>
       </div>`;
     }).join('');
 
-    return `<div class="plan-day">
-      <div class="plan-day-header">
-        <input class="plan-day-date-input" type="date" value="${day.date}"
-               onchange="updatePlanDate(${dayIdx},this.value)" />
-        <span style="font-size:13px;font-weight:500;color:#333;">${escH(day.label)}</span>
-        <button class="plan-day-add-note no-print" onclick="addNoteSlot(${dayIdx})">+ Note</button>
+    return `<div class="plan-col">
+      <div class="plan-col-header">
+        <div class="plan-col-date">${escH(day.label)}</div>
       </div>
       <div class="plan-day-slots" data-day="${dayIdx}">${slotsHtml}</div>
+      <div class="plan-col-footer">
+        <button class="plan-add-note-btn no-print" onclick="addNoteSlot(${dayIdx})">+ note</button>
+      </div>
     </div>`;
   }).join('');
+
+  setupPlanDragListeners();
 }
 
 function removePlanItem(idx) {
