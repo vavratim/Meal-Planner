@@ -479,7 +479,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-87</span>
+        <span class="di-label" style="color:#aaa;">Version rev-88</span>
       </div>
     </div>
   </div>
@@ -1138,8 +1138,6 @@ function setupPlanDragListeners() {
 // ── Publish, Print, View Ingredients ─────────────────────────────────────────
 
 async function publishOnly() {
-  const hasContent = planDays.some(d => d.slots.length > 0);
-  if (!hasContent) { setStatus('Add some meals to the plan first.'); return; }
   try {
     await api('POST', 'meal_plans', { created_at: new Date().toISOString(), plan: planDays });
     setStatus('Plan published! ✓');
@@ -1658,11 +1656,15 @@ async function saveDraft() {
   if (isSavingDraft) return;
   isSavingDraft = true;
   try {
+    const now = new Date().toISOString();
     if (draftRowId) {
-      await api('PATCH', `draft_plan?id=eq.${draftRowId}`, { plan: planDays, updated_at: new Date().toISOString() });
+      const r = await api('PATCH', `draft_plan?id=eq.${draftRowId}`, { plan: planDays, updated_at: now });
+      // Record the timestamp we just saved so the poller won't treat it as a remote update
+      if (r && r[0]) window._lastOwnSave = r[0].updated_at || now;
+      else window._lastOwnSave = now;
     } else {
       const r = await api('POST', 'draft_plan', { id: 1, plan: planDays });
-      if (r && r[0]) draftRowId = r[0].id;
+      if (r && r[0]) { draftRowId = r[0].id; window._lastOwnSave = r[0].updated_at || now; }
     }
   } catch(e) { console.warn('Draft save failed:', e.message); }
   isSavingDraft = false;
@@ -1681,6 +1683,11 @@ function subscribeToDraft() {
       // Only update if the server version is newer than what we last saw
       if (lastUpdatedAt && row.updated_at === lastUpdatedAt) return;
       if (lastUpdatedAt !== null) {
+        // Skip if this matches our own last save (bounce prevention)
+        if (window._lastOwnSave && row.updated_at === window._lastOwnSave) {
+          lastUpdatedAt = row.updated_at;
+          return;
+        }
         // A real remote update — apply it
         draftRowId = row.id;
         planDays = row.plan || planDays;
