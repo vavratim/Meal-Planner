@@ -923,6 +923,7 @@ function renderPlan() {
   empty.style.display = 'none';
   daysEl.style.display = '';
 
+  setupPlanDragListeners();
   daysEl.innerHTML = planDays.map((day, dayIdx) => {
     const slotsHtml = day.slots.map((slot, slotIdx) => {
       const isMeal = slot.type === 'meal';
@@ -937,9 +938,8 @@ function renderPlan() {
                oninput="planDays[${dayIdx}].slots[${slotIdx}].side=this.value" />`
         : '';
       return `<div class="${slotClass}" draggable="true"
+           data-day="${dayIdx}" data-slot="${slotIdx}"
            ondragstart="dragStart(event,${dayIdx},${slotIdx})"
-           ondragover="dragOver(event)"
-           ondrop="dropOn(event,${dayIdx},${slotIdx})"
            ondragend="dragEnd(event)">
         <span class="drag-handle no-print">⠿</span>
         <div class="plan-slot-main">
@@ -958,7 +958,7 @@ function renderPlan() {
         <span style="font-size:13px;font-weight:500;color:#333;">${escH(day.label)}</span>
         <button class="plan-day-add-note no-print" onclick="addNoteSlot(${dayIdx})">+ Note</button>
       </div>
-      <div class="plan-day-slots">${slotsHtml}</div>
+      <div class="plan-day-slots" data-day="${dayIdx}">${slotsHtml}</div>
     </div>`;
   }).join('');
 }
@@ -987,32 +987,74 @@ function clearPlan() {
 function dragStart(e, dayIdx, slotIdx) {
   dragSrc = { dayIdx, slotIdx };
   e.dataTransfer.effectAllowed = 'move';
-  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.setData('text/plain', dayIdx + ',' + slotIdx);
+  setTimeout(() => e.target.classList.add('dragging'), 0);
 }
-function dragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drag-over');
+
+function dragEnd(e) {
+  dragSrc = null;
+  document.querySelectorAll('.dragging, .drag-over').forEach(el => {
+    el.classList.remove('dragging', 'drag-over');
+  });
 }
-function dropOn(e, targetDayIdx, targetSlotIdx) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
+
+function execDrop(targetDayIdx, targetSlotIdx) {
   if (!dragSrc) return;
   const { dayIdx: srcDay, slotIdx: srcSlot } = dragSrc;
   if (srcDay === targetDayIdx && srcSlot === targetSlotIdx) return;
-  // Remove from source
   const [item] = planDays[srcDay].slots.splice(srcSlot, 1);
-  // Insert at target (adjust index if same day and removed before target)
   let tSlot = targetSlotIdx;
   if (srcDay === targetDayIdx && srcSlot < targetSlotIdx) tSlot--;
   planDays[targetDayIdx].slots.splice(tSlot, 0, item);
   dragSrc = null;
   renderPlan();
 }
-function dragEnd(e) {
-  dragSrc = null;
-  document.querySelectorAll('.dragging, .drag-over').forEach(el => {
-    el.classList.remove('dragging','drag-over');
+
+// Set up drag event delegation on plan-days container
+function setupPlanDragListeners() {
+  const container = document.getElementById('plan-days');
+  if (!container || container._dragSetup) return;
+  container._dragSetup = true;
+
+  container.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const slot = e.target.closest('.plan-day-slot');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    if (slot) slot.classList.add('drag-over');
+    else {
+      const slotsDiv = e.target.closest('.plan-day-slots');
+      if (slotsDiv) slotsDiv.classList.add('drag-over');
+    }
+  });
+
+  container.addEventListener('dragleave', e => {
+    // Only clear if leaving the container entirely
+    if (!container.contains(e.relatedTarget)) {
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    }
+  });
+
+  container.addEventListener('drop', e => {
+    e.preventDefault();
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    if (!dragSrc) return;
+
+    // Try to find target slot
+    const slotEl = e.target.closest('.plan-day-slot');
+    if (slotEl) {
+      const targetDay = parseInt(slotEl.dataset.day);
+      const targetSlot = parseInt(slotEl.dataset.slot);
+      execDrop(targetDay, targetSlot);
+      return;
+    }
+
+    // Dropped on day slots container (empty day or between slots)
+    const slotsDiv = e.target.closest('.plan-day-slots');
+    if (slotsDiv) {
+      const targetDay = parseInt(slotsDiv.dataset.day);
+      execDrop(targetDay, planDays[targetDay].slots.length);
+    }
   });
 }
 
