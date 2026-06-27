@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-97</div>
+      <div class="dropdown-footer">rev-98</div>
     </div>
   </div>
 </header>
@@ -1980,7 +1980,7 @@ async function fetchCalendarEvents() {
       const events = parseICS(cal.ics);
       for (const ev of events) {
         if (!calendarEvents[ev.date]) calendarEvents[ev.date] = [];
-        calendarEvents[ev.date].push({ title: ev.title, calName: cal.name, color: cal.color, time: ev.time });
+        calendarEvents[ev.date].push({ title: ev.title, calName: cal.name, color: cal.color, time: ev.time, sortMin: ev.sortMin });
       }
     }
     renderPlan();
@@ -2014,6 +2014,7 @@ function parseICS(icsText) {
           const tm = val.match(/T(\d{2})(\d{2})/);
           if (tm) {
             let h = parseInt(tm[1]); const min = tm[2];
+            cur.sortMin = h * 60 + parseInt(min); // for chronological sorting
             const ampm = h >= 12 ? 'pm' : 'am';
             h = h % 12; if (h === 0) h = 12;
             cur.time = h + (min !== '00' ? ':'+min : '') + ampm;
@@ -2031,10 +2032,10 @@ function calendarEventsHtml(dateStr) {
   if (!evs || !evs.length) return '';
   // Sort by time (timed events first in chronological order, all-day last)
   const sorted = evs.slice().sort((a,b) => {
-    if (!a.time && !b.time) return 0;
-    if (!a.time) return 1;
-    if (!b.time) return -1;
-    return 0;
+    const am = a.sortMin == null ? Infinity : a.sortMin; // all-day events last
+    const bm = b.sortMin == null ? Infinity : b.sortMin;
+    if (am !== bm) return am - bm;
+    return (a.title||'').localeCompare(b.title||'');
   });
   return `<div class="cal-events">` + sorted.map(ev =>
     `<div class="cal-event" style="border-left:3px solid ${escAttr(ev.color||'#378ADD')};" title="${escAttr(ev.calName)}">
