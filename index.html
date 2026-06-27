@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-99</div>
+      <div class="dropdown-footer">rev-100</div>
     </div>
   </div>
 </header>
@@ -1987,17 +1987,63 @@ async function fetchCalendarEvents() {
   } catch(e) { console.warn('Calendar fetch error:', e.message); }
 }
 
-// Minimal iCal parser — extracts events with their start date
+// iCal parser — extracts events, handles DTEND and recurring (RRULE) events
 function parseICS(icsText) {
   const events = [];
-  // Unfold lines (continued lines start with space/tab)
   const raw = icsText.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
   const lines = raw.split('\n');
   let cur = null;
+
+  // Window: only expand recurring events within plan date range (today .. +60 days)
+  const rangeStart = new Date(); rangeStart.setHours(0,0,0,0);
+  const rangeEnd = new Date(); rangeEnd.setDate(rangeEnd.getDate() + 60);
+
+  function parseDateTime(prefix, val) {
+    const isUTC = val.endsWith('Z');
+    const m = val.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const tm = val.match(/T(\d{2})(\d{2})(\d{2})?/);
+    if (tm) {
+      const yr=+m[1], mo=+m[2]-1, dy=+m[3], hh=+tm[1], mm=+tm[2], ss=tm[3]?+tm[3]:0;
+      const dObj = isUTC ? new Date(Date.UTC(yr,mo,dy,hh,mm,ss)) : new Date(yr,mo,dy,hh,mm,ss);
+      return { dateObj: dObj, allDay: false };
+    } else {
+      return { dateObj: new Date(+m[1], +m[2]-1, +m[3]), allDay: true };
+    }
+  }
+
+  function fmtTime(dObj) {
+    const lh = dObj.getHours(), lmin = dObj.getMinutes();
+    let dh = lh % 12; if (dh === 0) dh = 12;
+    const ampm = lh >= 12 ? 'pm' : 'am';
+    return { str: dh + (lmin !== 0 ? ':' + String(lmin).padStart(2,'0') : '') + ampm, sortMin: lh*60+lmin };
+  }
+
+  function localDateStr(dObj) {
+    return dObj.getFullYear() + '-' + String(dObj.getMonth()+1).padStart(2,'0') + '-' + String(dObj.getDate()).padStart(2,'0');
+  }
+
+  function buildEvent(title, startObj, endObj, allDay) {
+    const ev = { title, date: localDateStr(startObj), allDay };
+    if (!allDay) {
+      const st = fmtTime(startObj);
+      ev.sortMin = st.sortMin;
+      ev.time = endObj ? st.str + '–' + fmtTime(endObj).str : st.str;
+    }
+    return ev;
+  }
+
   for (const line of lines) {
     if (line.startsWith('BEGIN:VEVENT')) { cur = {}; }
     else if (line.startsWith('END:VEVENT')) {
-      if (cur && cur.date) events.push(cur);
+      if (cur && cur.startObj) {
+        if (cur.rrule) {
+          // Expand recurring event within range
+          expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events);
+        } else {
+          events.push(buildEvent(cur.title || '(no title)', cur.startObj, cur.endObj, cur.allDay));
+        }
+      }
       cur = null;
     }
     else if (cur) {
@@ -2008,42 +2054,63 @@ function parseICS(icsText) {
       else if (line.startsWith('DTSTART')) {
         const prefix = line.substring(0, line.indexOf(':'));
         const val = line.substring(line.indexOf(':')+1).trim();
-        const isUTC = val.endsWith('Z');
-        // Check for explicit TZID in the property (e.g. DTSTART;TZID=America/Chicago:...)
-        const tzMatch = prefix.match(/TZID=([^;:]+)/);
-        const m = val.match(/^(\d{4})(\d{2})(\d{2})/);
-        if (m) {
-          const tm = val.match(/T(\d{2})(\d{2})(\d{2})?/);
-          if (tm) {
-            // Timed event — build a proper Date and convert to local time
-            const yr = +m[1], mo = +m[2]-1, dy = +m[3];
-            const hh = +tm[1], mm = +tm[2], ss = tm[3] ? +tm[3] : 0;
-            let dateObj;
-            if (isUTC) {
-              dateObj = new Date(Date.UTC(yr, mo, dy, hh, mm, ss));
-            } else {
-              // Floating or TZID local time — treat as local (best effort without full TZ db)
-              dateObj = new Date(yr, mo, dy, hh, mm, ss);
-            }
-            // Local date string (may shift across midnight after TZ conversion)
-            const ly = dateObj.getFullYear();
-            const lmo = String(dateObj.getMonth()+1).padStart(2,'0');
-            const ldy = String(dateObj.getDate()).padStart(2,'0');
-            cur.date = ly + '-' + lmo + '-' + ldy;
-            const lh = dateObj.getHours(), lmin = dateObj.getMinutes();
-            cur.sortMin = lh * 60 + lmin;
-            let dh = lh % 12; if (dh === 0) dh = 12;
-            const ampm = lh >= 12 ? 'pm' : 'am';
-            cur.time = dh + (lmin !== 0 ? ':' + String(lmin).padStart(2,'0') : '') + ampm;
-          } else {
-            // All-day event — no time, keep date as-is
-            cur.date = m[1] + '-' + m[2] + '-' + m[3];
-          }
-        }
+        const p = parseDateTime(prefix, val);
+        if (p) { cur.startObj = p.dateObj; cur.allDay = p.allDay; }
+      }
+      else if (line.startsWith('DTEND')) {
+        const prefix = line.substring(0, line.indexOf(':'));
+        const val = line.substring(line.indexOf(':')+1).trim();
+        const p = parseDateTime(prefix, val);
+        if (p) cur.endObj = p.dateObj;
+      }
+      else if (line.startsWith('RRULE')) {
+        cur.rrule = line.substring(line.indexOf(':')+1).trim();
       }
     }
   }
   return events;
+}
+
+// Expand a recurring event (basic FREQ=DAILY/WEEKLY/MONTHLY support) within [start,end]
+function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events) {
+  const rule = {};
+  for (const part of cur.rrule.split(';')) {
+    const [k,v] = part.split('=');
+    rule[k] = v;
+  }
+  const freq = rule.FREQ;
+  const interval = parseInt(rule.INTERVAL) || 1;
+  let until = null;
+  if (rule.UNTIL) {
+    const um = rule.UNTIL.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (um) until = new Date(+um[1], +um[2]-1, +um[3], 23, 59, 59);
+  }
+  const count = rule.COUNT ? parseInt(rule.COUNT) : null;
+
+  // Duration between start and end
+  const durMs = cur.endObj ? (cur.endObj - cur.startObj) : 0;
+
+  let occ = new Date(cur.startObj);
+  let n = 0;
+  const maxIter = 400; // safety
+  for (let i = 0; i < maxIter; i++) {
+    if (occ > rangeEnd) break;
+    if (until && occ > until) break;
+    if (count && n >= count) break;
+
+    if (occ >= rangeStart) {
+      const endOcc = durMs ? new Date(occ.getTime() + durMs) : null;
+      events.push(buildEvent(cur.title || '(no title)', new Date(occ), endOcc, cur.allDay));
+    }
+    n++;
+
+    // Advance
+    if (freq === 'DAILY') occ.setDate(occ.getDate() + interval);
+    else if (freq === 'WEEKLY') occ.setDate(occ.getDate() + 7 * interval);
+    else if (freq === 'MONTHLY') occ.setMonth(occ.getMonth() + interval);
+    else if (freq === 'YEARLY') occ.setFullYear(occ.getFullYear() + interval);
+    else break; // unsupported freq
+  }
 }
 
 function calendarEventsHtml(dateStr) {
