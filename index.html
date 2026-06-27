@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-101</div>
+      <div class="dropdown-footer">rev-102</div>
     </div>
   </div>
 </header>
@@ -2033,23 +2033,21 @@ function parseICS(icsText) {
     return ev;
   }
 
+  // First pass: parse all VEVENTs into objects
+  const vevents = [];
   for (const line of lines) {
-    if (line.startsWith('BEGIN:VEVENT')) { cur = {}; }
+    if (line.startsWith('BEGIN:VEVENT')) { cur = { exdates: [] }; }
     else if (line.startsWith('END:VEVENT')) {
-      if (cur && cur.startObj) {
-        if (cur.rrule) {
-          // Expand recurring event within range
-          expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events);
-        } else {
-          events.push(buildEvent(cur.title || '(no title)', cur.startObj, cur.endObj, cur.allDay));
-        }
-      }
+      if (cur && cur.startObj) vevents.push(cur);
       cur = null;
     }
     else if (cur) {
       if (line.startsWith('SUMMARY')) {
         cur.title = line.substring(line.indexOf(':')+1).trim()
           .replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, ' ');
+      }
+      else if (line.startsWith('UID')) {
+        cur.uid = line.substring(line.indexOf(':')+1).trim();
       }
       else if (line.startsWith('DTSTART')) {
         const prefix = line.substring(0, line.indexOf(':'));
@@ -2066,13 +2064,52 @@ function parseICS(icsText) {
       else if (line.startsWith('RRULE')) {
         cur.rrule = line.substring(line.indexOf(':')+1).trim();
       }
+      else if (line.startsWith('RECURRENCE-ID')) {
+        const prefix = line.substring(0, line.indexOf(':'));
+        const val = line.substring(line.indexOf(':')+1).trim();
+        const p = parseDateTime(prefix, val);
+        if (p) cur.recurrenceId = localDateStr(p.dateObj);
+      }
+      else if (line.startsWith('EXDATE')) {
+        // May contain multiple comma-separated dates
+        const val = line.substring(line.indexOf(':')+1).trim();
+        for (const part of val.split(',')) {
+          const p = parseDateTime('', part.trim());
+          if (p) cur.exdates.push(localDateStr(p.dateObj));
+        }
+      }
+    }
+  }
+
+  // Build a set of overridden occurrence dates per UID (moved single instances)
+  const overrides = {}; // uid -> Set of original dates that were moved/overridden
+  for (const ve of vevents) {
+    if (ve.recurrenceId && ve.uid) {
+      if (!overrides[ve.uid]) overrides[ve.uid] = new Set();
+      overrides[ve.uid].add(ve.recurrenceId);
+    }
+  }
+
+  // Second pass: emit events
+  for (const ve of vevents) {
+    if (ve.rrule) {
+      // Recurring master — skip occurrences that were excluded or overridden
+      const skip = new Set(ve.exdates);
+      if (ve.uid && overrides[ve.uid]) {
+        for (const d of overrides[ve.uid]) skip.add(d);
+      }
+      expandRecurring(ve, rangeStart, rangeEnd, buildEvent, events, skip);
+    } else {
+      // Single event (including moved occurrences with RECURRENCE-ID)
+      events.push(buildEvent(ve.title || '(no title)', ve.startObj, ve.endObj, ve.allDay));
     }
   }
   return events;
 }
 
 // Expand a recurring event within [start,end]. Handles FREQ + INTERVAL + UNTIL + COUNT + BYDAY (weekly).
-function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events) {
+function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events, skip) {
+  skip = skip || new Set();
   const rule = {};
   for (const part of cur.rrule.split(';')) {
     const [k,v] = part.split('=');
@@ -2097,9 +2134,11 @@ function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events) {
 
   const startH = cur.startObj.getHours(), startM = cur.startObj.getMinutes(), startS = cur.startObj.getSeconds();
 
+  function lds(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function emit(dObj, n) {
     if (dObj < rangeStart || dObj > rangeEnd) return;
     if (until && dObj > until) return;
+    if (skip.has(lds(dObj))) return; // excluded or moved occurrence
     const endOcc = durMs ? new Date(dObj.getTime() + durMs) : null;
     events.push(buildEvent(cur.title || '(no title)', new Date(dObj), endOcc, cur.allDay));
   }
