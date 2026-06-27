@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-98</div>
+      <div class="dropdown-footer">rev-99</div>
     </div>
   </div>
 </header>
@@ -2006,18 +2006,38 @@ function parseICS(icsText) {
           .replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, ' ');
       }
       else if (line.startsWith('DTSTART')) {
+        const prefix = line.substring(0, line.indexOf(':'));
         const val = line.substring(line.indexOf(':')+1).trim();
-        // Format: 20250615 or 20250615T140000Z
+        const isUTC = val.endsWith('Z');
+        // Check for explicit TZID in the property (e.g. DTSTART;TZID=America/Chicago:...)
+        const tzMatch = prefix.match(/TZID=([^;:]+)/);
         const m = val.match(/^(\d{4})(\d{2})(\d{2})/);
         if (m) {
-          cur.date = m[1] + '-' + m[2] + '-' + m[3];
-          const tm = val.match(/T(\d{2})(\d{2})/);
+          const tm = val.match(/T(\d{2})(\d{2})(\d{2})?/);
           if (tm) {
-            let h = parseInt(tm[1]); const min = tm[2];
-            cur.sortMin = h * 60 + parseInt(min); // for chronological sorting
-            const ampm = h >= 12 ? 'pm' : 'am';
-            h = h % 12; if (h === 0) h = 12;
-            cur.time = h + (min !== '00' ? ':'+min : '') + ampm;
+            // Timed event — build a proper Date and convert to local time
+            const yr = +m[1], mo = +m[2]-1, dy = +m[3];
+            const hh = +tm[1], mm = +tm[2], ss = tm[3] ? +tm[3] : 0;
+            let dateObj;
+            if (isUTC) {
+              dateObj = new Date(Date.UTC(yr, mo, dy, hh, mm, ss));
+            } else {
+              // Floating or TZID local time — treat as local (best effort without full TZ db)
+              dateObj = new Date(yr, mo, dy, hh, mm, ss);
+            }
+            // Local date string (may shift across midnight after TZ conversion)
+            const ly = dateObj.getFullYear();
+            const lmo = String(dateObj.getMonth()+1).padStart(2,'0');
+            const ldy = String(dateObj.getDate()).padStart(2,'0');
+            cur.date = ly + '-' + lmo + '-' + ldy;
+            const lh = dateObj.getHours(), lmin = dateObj.getMinutes();
+            cur.sortMin = lh * 60 + lmin;
+            let dh = lh % 12; if (dh === 0) dh = 12;
+            const ampm = lh >= 12 ? 'pm' : 'am';
+            cur.time = dh + (lmin !== 0 ? ':' + String(lmin).padStart(2,'0') : '') + ampm;
+          } else {
+            // All-day event — no time, keep date as-is
+            cur.date = m[1] + '-' + m[2] + '-' + m[3];
           }
         }
       }
