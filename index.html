@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-100</div>
+      <div class="dropdown-footer">rev-101</div>
     </div>
   </div>
 </header>
@@ -2071,7 +2071,7 @@ function parseICS(icsText) {
   return events;
 }
 
-// Expand a recurring event (basic FREQ=DAILY/WEEKLY/MONTHLY support) within [start,end]
+// Expand a recurring event within [start,end]. Handles FREQ + INTERVAL + UNTIL + COUNT + BYDAY (weekly).
 function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events) {
   const rule = {};
   for (const part of cur.rrule.split(';')) {
@@ -2086,30 +2086,69 @@ function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events) {
     if (um) until = new Date(+um[1], +um[2]-1, +um[3], 23, 59, 59);
   }
   const count = rule.COUNT ? parseInt(rule.COUNT) : null;
-
-  // Duration between start and end
   const durMs = cur.endObj ? (cur.endObj - cur.startObj) : 0;
 
-  let occ = new Date(cur.startObj);
+  // BYDAY for weekly events (e.g. MO,WE,FR)
+  const dayMap = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+  let byDays = null;
+  if (rule.BYDAY && freq === 'WEEKLY') {
+    byDays = rule.BYDAY.split(',').map(d => dayMap[d.replace(/[^A-Z]/g,'')]).filter(d => d != null);
+  }
+
+  const startH = cur.startObj.getHours(), startM = cur.startObj.getMinutes(), startS = cur.startObj.getSeconds();
+
+  function emit(dObj, n) {
+    if (dObj < rangeStart || dObj > rangeEnd) return;
+    if (until && dObj > until) return;
+    const endOcc = durMs ? new Date(dObj.getTime() + durMs) : null;
+    events.push(buildEvent(cur.title || '(no title)', new Date(dObj), endOcc, cur.allDay));
+  }
+
   let n = 0;
-  const maxIter = 400; // safety
+  const maxIter = 500;
+
+  if (freq === 'WEEKLY' && byDays && byDays.length) {
+    // Walk week by week; within each active week, emit each BYDAY
+    // Start from the Sunday of the start week
+    let weekStart = new Date(cur.startObj);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0,0,0,0);
+    let weekIdx = 0;
+    for (let i = 0; i < maxIter; i++) {
+      if (weekStart > rangeEnd) break;
+      if (until && weekStart > until) break;
+      if (weekIdx % interval === 0) {
+        for (const wd of byDays) {
+          const occ = new Date(weekStart);
+          occ.setDate(weekStart.getDate() + wd);
+          occ.setHours(startH, startM, startS, 0);
+          if (occ >= cur.startObj) {  // don't emit before the actual start
+            if (count && n >= count) break;
+            emit(occ, n);
+            n++;
+          }
+        }
+      }
+      if (count && n >= count) break;
+      weekStart.setDate(weekStart.getDate() + 7);
+      weekIdx++;
+    }
+    return;
+  }
+
+  // Non-BYDAY: simple step
+  let occ = new Date(cur.startObj);
   for (let i = 0; i < maxIter; i++) {
     if (occ > rangeEnd) break;
     if (until && occ > until) break;
     if (count && n >= count) break;
-
-    if (occ >= rangeStart) {
-      const endOcc = durMs ? new Date(occ.getTime() + durMs) : null;
-      events.push(buildEvent(cur.title || '(no title)', new Date(occ), endOcc, cur.allDay));
-    }
+    emit(occ, n);
     n++;
-
-    // Advance
     if (freq === 'DAILY') occ.setDate(occ.getDate() + interval);
     else if (freq === 'WEEKLY') occ.setDate(occ.getDate() + 7 * interval);
     else if (freq === 'MONTHLY') occ.setMonth(occ.getMonth() + interval);
     else if (freq === 'YEARLY') occ.setFullYear(occ.getFullYear() + interval);
-    else break; // unsupported freq
+    else break;
   }
 }
 
@@ -2118,8 +2157,17 @@ function calendarEventsHtml(dateStr) {
   const evs = calendarEvents[dateStr];
   if (!evs || !evs.length) return '';
   // Sort by time (timed events first in chronological order, all-day last)
-  const sorted = evs.slice().sort((a,b) => {
-    const am = a.sortMin == null ? Infinity : a.sortMin; // all-day events last
+  // Dedupe events that appear in multiple calendars (same title + time)
+  const seen = new Set();
+  const deduped = [];
+  for (const ev of evs) {
+    const key = (ev.title||'').toLowerCase().trim() + '|' + (ev.time||'');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(ev);
+  }
+  const sorted = deduped.sort((a,b) => {
+    const am = a.sortMin == null ? Infinity : a.sortMin;
     const bm = b.sortMin == null ? Infinity : b.sortMin;
     if (am !== bm) return am - bm;
     return (a.title||'').localeCompare(b.title||'');
