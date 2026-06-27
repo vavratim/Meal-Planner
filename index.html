@@ -322,6 +322,23 @@ header h1 { font-size: 19px; font-weight: 500; }
 </head>
 <body>
 
+<!-- Login gate -->
+<div id="login-overlay" style="position:fixed;inset:0;background:#f5f4f0;z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #e0dfd8;border-radius:14px;padding:32px;width:340px;max-width:90vw;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+    <h2 style="font-size:20px;font-weight:500;margin-bottom:6px;">🍽 Meal Planner</h2>
+    <p style="font-size:13px;color:#999;margin-bottom:20px;">Please sign in to continue.</p>
+    <input type="email" id="login-email" placeholder="Email" autocomplete="username"
+           style="width:100%;padding:10px 12px;border:1px solid #d0cfc8;border-radius:8px;font-size:14px;margin-bottom:10px;outline:none;" />
+    <input type="password" id="login-password" placeholder="Password" autocomplete="current-password"
+           style="width:100%;padding:10px 12px;border:1px solid #d0cfc8;border-radius:8px;font-size:14px;margin-bottom:16px;outline:none;"
+           onkeydown="if(event.key==='Enter')doLogin()" />
+    <button id="login-btn" onclick="doLogin()"
+            style="width:100%;padding:10px;background:#1a1a18;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">Sign in</button>
+    <div id="login-error" style="font-size:12px;color:#c04040;margin-top:10px;min-height:16px;"></div>
+  </div>
+</div>
+
+
 <div class="loader" id="loader">Loading…</div>
 
 <!-- Ingredient list modal -->
@@ -485,10 +502,15 @@ header h1 { font-size: 19px; font-weight: 500; }
         <span class="di-icon">📄</span>
         <span class="di-label">Export recipes (CSV)</span>
       </div>
+      <div class="dropdown-section">Account</div>
+      <div class="dropdown-item" onclick="logout()">
+        <span class="di-icon">🚪</span>
+        <span class="di-label">Sign out</span>
+      </div>
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-91</span>
+        <span class="di-label" style="color:#aaa;">Version rev-92</span>
       </div>
     </div>
   </div>
@@ -536,13 +558,91 @@ header h1 { font-size: 19px; font-weight: 500; }
 const SUPABASE_URL = 'https://ylcthybtssnthhesbydt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsY3RoeWJ0c3NudGhoZXNieWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NTgzNjQsImV4cCI6MjA5NjQzNDM2NH0.PB1Geq9B7yjqFNNWnlkPOn3CFqHzwOBU9MdZMQsKibE';
 const DEFAULT_TAGS = ['Summer','Fall','Winter','Spring'];
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+let authToken = null;
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  if (!email || !password) { errEl.textContent = 'Enter email and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  errEl.textContent = '';
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.access_token) {
+      errEl.textContent = data.error_description || data.msg || 'Invalid login.';
+      btn.disabled = false; btn.textContent = 'Sign in';
+      return;
+    }
+    authToken = data.access_token;
+    // Persist session (refresh token) so we stay logged in
+    try {
+      localStorage.setItem('mp_refresh', data.refresh_token);
+      localStorage.setItem('mp_access', data.access_token);
+    } catch(e) {}
+    document.getElementById('login-overlay').style.display = 'none';
+    boot();
+  } catch(e) {
+    errEl.textContent = 'Connection error. Try again.';
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+
+async function tryRestoreSession() {
+  let access = null, refresh = null;
+  try { access = localStorage.getItem('mp_access'); refresh = localStorage.getItem('mp_refresh'); } catch(e) {}
+  if (!access || !refresh) return false;
+
+  // Try the stored access token first
+  authToken = access;
+  // Verify it still works
+  const test = await fetch(SUPABASE_URL + '/auth/v1/user', {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + access }
+  });
+  if (test.ok) return true;
+
+  // Access token expired — refresh it
+  try {
+    const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ refresh_token: refresh })
+    });
+    const data = await res.json();
+    if (res.ok && data.access_token) {
+      authToken = data.access_token;
+      try {
+        localStorage.setItem('mp_access', data.access_token);
+        localStorage.setItem('mp_refresh', data.refresh_token);
+      } catch(e) {}
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function logout() {
+  try { localStorage.removeItem('mp_access'); localStorage.removeItem('mp_refresh'); } catch(e) {}
+  authToken = null;
+  location.reload();
+}
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const H = {
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': 'Bearer ' + SUPABASE_KEY,
-  'Prefer': 'return=representation'
-};
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + (authToken || SUPABASE_KEY),
+    'Prefer': 'return=representation'
+  };
+}
 
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
 const DEFAULT_UNITS = ['tsp', 'tbsp', 'cup', 'fl oz', 'oz', 'lb', 'g', 'kg', 'ml', 'l', 'pinch', 'dash', 'can', 'pkg', 'bunch', 'slice', 'clove', 'piece', 'whole'];
@@ -609,9 +709,22 @@ function allPlanSlots() {
 
 async function api(method, path, body) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    method, headers: H,
+    method, headers: authHeaders(),
     body: body ? JSON.stringify(body) : undefined
   });
+  if (res.status === 401) {
+    // Session expired mid-use — try to restore, else force re-login
+    const ok = await tryRestoreSession();
+    if (ok) {
+      const retry = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+        method, headers: authHeaders(),
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (retry.ok) { const t = await retry.text(); return t ? JSON.parse(t) : null; }
+    }
+    document.getElementById('login-overlay').style.display = 'flex';
+    throw new Error('Session expired — please sign in again.');
+  }
   if (!res.ok) throw new Error(await res.text());
   const t = await res.text();
   return t ? JSON.parse(t) : null;
@@ -2099,7 +2212,17 @@ document.getElementById('new-global-tag').addEventListener('keydown', e=>{ if(e.
 document.getElementById('new-unit-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addUnit(); });
 document.getElementById('staple-new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addStaple(); });
 
-boot();
+// Auth-gated startup
+(async function startup() {
+  const restored = await tryRestoreSession();
+  if (restored) {
+    document.getElementById('login-overlay').style.display = 'none';
+    boot();
+  } else {
+    document.getElementById('login-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('login-email').focus(), 100);
+  }
+})();
 </script>
 </body>
 </html>
