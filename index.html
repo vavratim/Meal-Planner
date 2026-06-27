@@ -547,7 +547,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-94</span>
+        <span class="di-label" style="color:#aaa;">Version rev-95</span>
       </div>
     </div>
   </div>
@@ -1964,7 +1964,7 @@ function downloadFile(text, filename, mime) {
 }
 
 // ── Calendars ────────────────────────────────────────────────────────────────
-const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/ical-proxy';
+const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/quick-task';
 
 async function fetchCalendarEvents() {
   if (!calendars.some(c => c.enabled)) { calendarEvents = {}; renderPlan(); return; }
