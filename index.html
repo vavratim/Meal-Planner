@@ -86,6 +86,10 @@ header h1 { font-size: 19px; font-weight: 500; }
 .plan-slot-remove:hover { color: #c04040; background: #fcefef; }
 .plan-add-note-btn { font-size: 11px; color: #bbb; border: 1px dashed #d0cfc8; border-radius: 999px; background: transparent; cursor: pointer; padding: 2px 8px; display: block; margin-bottom: 4px; }
 .plan-add-note-btn:hover { color: #6644aa; border-color: #9977cc; }
+.cal-events { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.cal-event { font-size: 11px; color: #666; padding: 2px 6px; background: #fafaf8; border-radius: 3px; display: flex; gap: 5px; align-items: baseline; }
+.cal-event-time { font-size: 10px; color: #999; flex-shrink: 0; }
+.cal-event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recipe-print-label { font-size: 11px; color: #888; display: flex; align-items: center; gap: 3px; cursor: pointer; white-space: nowrap; margin-top: 4px; }
 .recipe-print-label input { accent-color: #2a7a3b; }
 
@@ -390,6 +394,29 @@ header h1 { font-size: 19px; font-weight: 500; }
   </div>
 </div>
 
+<!-- Calendars modal -->
+<div class="modal-overlay" id="calendars-modal" onclick="if(event.target===this)closeCalendarsModal()">
+  <div class="modal" style="width:480px;">
+    <h3>📆 Manage calendars</h3>
+    <p class="modal-note">Add Google Calendar secret iCal URLs. Events show on each day of your plan. URLs are stored securely and never appear in the page.</p>
+    <div class="modal-scroll" id="calendars-list" style="margin-bottom:12px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div style="font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Add calendar</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <input type="text" id="cal-new-name" placeholder="Name (e.g. Kenna's School)"
+             style="padding:8px 10px;border:1px solid #d0cfc8;border-radius:8px;font-size:13px;outline:none;" />
+      <input type="text" id="cal-new-url" placeholder="Secret iCal URL (ends in .ics)"
+             style="padding:8px 10px;border:1px solid #d0cfc8;border-radius:8px;font-size:13px;outline:none;" />
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="color" id="cal-new-color" value="#378ADD" style="width:40px;height:36px;border:1px solid #d0cfc8;border-radius:8px;cursor:pointer;" />
+        <button class="btn btn-primary" onclick="addCalendar()" style="flex:1;">Add calendar</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeCalendarsModal()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Tag management modal -->
 <div class="modal-overlay" id="tag-modal" onclick="if(event.target===this)closeTagModal()">
   <div class="modal">
@@ -483,6 +510,16 @@ header h1 { font-size: 19px; font-weight: 500; }
         <span class="di-icon">🧂</span>
         <span class="di-label">Manage staples</span>
       </div>
+      <div class="dropdown-section">Calendars</div>
+      <div class="dropdown-item" onclick="openCalendarsModal()">
+        <span class="di-icon">📆</span>
+        <span class="di-label">Manage calendars</span>
+      </div>
+      <div class="dropdown-item" onclick="toggleCalendarDisplay()">
+        <span class="di-icon">👁️</span>
+        <span class="di-label">Show calendar events</span>
+        <div class="di-toggle on" id="cal-display-toggle"></div>
+      </div>
       <div class="dropdown-section">Meals</div>
       <div class="dropdown-item" onclick="openAddMealModal()">
         <span class="di-icon">➕</span>
@@ -510,7 +547,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-92</span>
+        <span class="di-label" style="color:#aaa;">Version rev-93</span>
       </div>
     </div>
   </div>
@@ -657,6 +694,9 @@ let mealPlanHistory = [];   // cached plan history
 let planDays = [];
 let dragSrc = null; // {dayIdx, slotIdx}
 let staples = []; // [{id, name, threshold_quantity, threshold_unit}]
+let calendars = []; // [{id, name, ical_url, color, enabled}]
+let calendarEvents = {}; // { 'YYYY-MM-DD': [{title, calName, color}] }
+let showCalendarEvents = true;
 let draftSaveTimer = null;
 let realtimeChannel = null;
 let draftRowId = null;
@@ -786,6 +826,12 @@ async function boot() {
     try {
       staples = await api('GET', 'staples?select=*&order=name.asc') || [];
     } catch(e) { staples = []; }
+
+    // Load calendars + fetch events
+    try {
+      calendars = await api('GET', 'calendars?select=*&order=sort_order.asc,created_at.asc') || [];
+    } catch(e) { calendars = []; }
+    fetchCalendarEvents(); // async, updates plan when ready
 
     // Load published meal history for frequency sort + recent exclusion
     try {
@@ -1114,6 +1160,7 @@ function renderPlan() {
       </div>
       <div class="plan-cell plan-cell-slots">
         <div class="plan-day-slots" data-day="${dayIdx}">${slotsHtml}</div>
+        ${calendarEventsHtml(day.date)}
       </div>
       <div class="plan-cell plan-cell-actions">
         <button class="plan-add-note-btn no-print" onclick="addNoteSlot(${dayIdx})">+ note</button>
@@ -1918,6 +1965,154 @@ function downloadFile(text, filename, mime) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── Calendars ────────────────────────────────────────────────────────────────
+const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/ical-proxy';
+
+async function fetchCalendarEvents() {
+  if (!calendars.some(c => c.enabled)) { calendarEvents = {}; renderPlan(); return; }
+  try {
+    const res = await fetch(EDGE_FN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + (authToken || SUPABASE_KEY)
+      },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) { console.warn('Calendar fetch failed:', res.status); return; }
+    const data = await res.json();
+    calendarEvents = {};
+    for (const cal of (data.calendars || [])) {
+      if (!cal.ics) continue;
+      const events = parseICS(cal.ics);
+      for (const ev of events) {
+        if (!calendarEvents[ev.date]) calendarEvents[ev.date] = [];
+        calendarEvents[ev.date].push({ title: ev.title, calName: cal.name, color: cal.color, time: ev.time });
+      }
+    }
+    renderPlan();
+  } catch(e) { console.warn('Calendar fetch error:', e.message); }
+}
+
+// Minimal iCal parser — extracts events with their start date
+function parseICS(icsText) {
+  const events = [];
+  // Unfold lines (continued lines start with space/tab)
+  const raw = icsText.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
+  const lines = raw.split('\n');
+  let cur = null;
+  for (const line of lines) {
+    if (line.startsWith('BEGIN:VEVENT')) { cur = {}; }
+    else if (line.startsWith('END:VEVENT')) {
+      if (cur && cur.date) events.push(cur);
+      cur = null;
+    }
+    else if (cur) {
+      if (line.startsWith('SUMMARY')) {
+        cur.title = line.substring(line.indexOf(':')+1).trim()
+          .replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, ' ');
+      }
+      else if (line.startsWith('DTSTART')) {
+        const val = line.substring(line.indexOf(':')+1).trim();
+        // Format: 20250615 or 20250615T140000Z
+        const m = val.match(/^(\d{4})(\d{2})(\d{2})/);
+        if (m) {
+          cur.date = m[1] + '-' + m[2] + '-' + m[3];
+          const tm = val.match(/T(\d{2})(\d{2})/);
+          if (tm) {
+            let h = parseInt(tm[1]); const min = tm[2];
+            const ampm = h >= 12 ? 'pm' : 'am';
+            h = h % 12; if (h === 0) h = 12;
+            cur.time = h + (min !== '00' ? ':'+min : '') + ampm;
+          }
+        }
+      }
+    }
+  }
+  return events;
+}
+
+function calendarEventsHtml(dateStr) {
+  if (!showCalendarEvents) return '';
+  const evs = calendarEvents[dateStr];
+  if (!evs || !evs.length) return '';
+  return `<div class="cal-events">` + evs.map(ev =>
+    `<div class="cal-event" style="border-left:3px solid ${escAttr(ev.color||'#378ADD')};" title="${escAttr(ev.calName)}">
+      ${ev.time ? `<span class="cal-event-time">${escH(ev.time)}</span>` : ''}
+      <span class="cal-event-title">${escH(ev.title)}</span>
+    </div>`
+  ).join('') + `</div>`;
+}
+
+function openCalendarsModal() {
+  document.getElementById('dropdown').classList.add('hidden');
+  renderCalendarsModal();
+  document.getElementById('calendars-modal').classList.add('show');
+}
+function closeCalendarsModal() {
+  document.getElementById('calendars-modal').classList.remove('show');
+  fetchCalendarEvents(); // refresh after changes
+}
+
+function renderCalendarsModal() {
+  const list = document.getElementById('calendars-list');
+  if (!calendars.length) {
+    list.innerHTML = '<div style="font-size:13px;color:#aaa;">No calendars yet.</div>';
+    return;
+  }
+  list.innerHTML = calendars.map(c => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e8e7e0;border-radius:8px;">
+      <span style="width:14px;height:14px;border-radius:3px;background:${escAttr(c.color||'#378ADD')};flex-shrink:0;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${escH(c.name)}</div>
+        <div style="font-size:11px;color:#bbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escH(c.ical_url.slice(0,40))}…</div>
+      </div>
+      <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:3px;cursor:pointer;">
+        <input type="checkbox" ${c.enabled?'checked':''} onchange="toggleCalendar('${c.id}',this.checked)" /> on
+      </label>
+      <button class="staple-del" onclick="deleteCalendar('${c.id}','${escAttr(c.name)}')">✕</button>
+    </div>`).join('');
+}
+
+async function addCalendar() {
+  const name = document.getElementById('cal-new-name').value.trim();
+  const url = document.getElementById('cal-new-url').value.trim();
+  const color = document.getElementById('cal-new-color').value;
+  if (!name || !url) { setStatus('Enter a name and URL.'); return; }
+  try {
+    const r = await api('POST', 'calendars', { name, ical_url: url, color, enabled: true, sort_order: calendars.length });
+    calendars.push(r[0]);
+    document.getElementById('cal-new-name').value = '';
+    document.getElementById('cal-new-url').value = '';
+    renderCalendarsModal();
+    setStatus('Calendar added!');
+  } catch(e) { setStatus('Error: ' + e.message, true); }
+}
+
+async function toggleCalendar(id, enabled) {
+  const cal = calendars.find(c => c.id === id); if (!cal) return;
+  try {
+    await api('PATCH', `calendars?id=eq.${id}`, { enabled });
+    cal.enabled = enabled;
+  } catch(e) { setStatus('Error: ' + e.message, true); }
+}
+
+async function deleteCalendar(id, name) {
+  if (!confirm(`Remove calendar "${name}"?`)) return;
+  try {
+    await api('DELETE', `calendars?id=eq.${id}`);
+    calendars = calendars.filter(c => c.id !== id);
+    renderCalendarsModal();
+  } catch(e) { setStatus('Error: ' + e.message, true); }
+}
+
+function toggleCalendarDisplay() {
+  showCalendarEvents = !showCalendarEvents;
+  document.getElementById('cal-display-toggle').classList.toggle('on', showCalendarEvents);
+  renderPlan();
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
