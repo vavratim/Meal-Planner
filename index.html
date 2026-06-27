@@ -476,10 +476,19 @@ header h1 { font-size: 19px; font-weight: 500; }
         <span class="di-icon">📋</span>
         <span class="di-label">View past meal plans</span>
       </div>
+      <div class="dropdown-section">Data</div>
+      <div class="dropdown-item" onclick="exportData('json')">
+        <span class="di-icon">⬇️</span>
+        <span class="di-label">Export all data (JSON)</span>
+      </div>
+      <div class="dropdown-item" onclick="exportData('csv')">
+        <span class="di-icon">📄</span>
+        <span class="di-label">Export recipes (CSV)</span>
+      </div>
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-90</span>
+        <span class="di-label" style="color:#aaa;">Version rev-91</span>
       </div>
     </div>
   </div>
@@ -1714,6 +1723,88 @@ function subscribeToDraft() {
 function showDraftBadge() {
   const badge = document.getElementById('draft-badge');
   if (badge) { badge.style.display = 'inline'; setTimeout(() => badge.style.display = 'none', 2000); }
+}
+
+// ── Data export ───────────────────────────────────────────────────────────────
+async function exportData(format) {
+  document.getElementById('dropdown').classList.add('hidden');
+  setStatus('Building export…');
+  try {
+    // Pull fresh copies of everything
+    const [allMeals, allIngredients, allTagRows, allUnitRows, allStaples, allPublished] = await Promise.all([
+      api('GET', 'meals?select=*&order=name.asc'),
+      api('GET', 'ingredients?select=*&order=meal_id.asc,sort_order.asc'),
+      api('GET', 'tags?select=*').catch(()=>[]),
+      api('GET', 'units?select=*').catch(()=>[]),
+      api('GET', 'staples?select=*&order=name.asc').catch(()=>[]),
+      api('GET', 'published_meals?select=*&order=meal_date.desc').catch(()=>[])
+    ]);
+
+    // Attach ingredients to meals
+    const ingByMeal = {};
+    for (const ing of (allIngredients||[])) {
+      if (!ingByMeal[ing.meal_id]) ingByMeal[ing.meal_id] = [];
+      ingByMeal[ing.meal_id].push(ing);
+    }
+
+    if (format === 'json') {
+      const payload = {
+        exported_at: new Date().toISOString(),
+        meals: (allMeals||[]).map(m => ({
+          id: m.id,
+          name: m.name,
+          tags: m.season || [],
+          notes: m.notes || '',
+          ingredients: (ingByMeal[m.id]||[]).map(i => ({
+            name: i.name, quantity: i.quantity, unit: i.unit, sort_order: i.sort_order
+          }))
+        })),
+        tags: allTagRows && allTagRows[0] ? allTagRows[0].names : [],
+        units: allUnitRows && allUnitRows[0] ? allUnitRows[0].names : [],
+        staples: (allStaples||[]).map(s => ({ name: s.name, threshold_quantity: s.threshold_quantity, threshold_unit: s.threshold_unit })),
+        published_meals: (allPublished||[]).map(p => ({ meal_date: p.meal_date, meal_name: p.meal_name, side: p.side, note: p.note }))
+      };
+      downloadFile(JSON.stringify(payload, null, 2), 'meal-planner-export.json', 'application/json');
+    } else {
+      // CSV: one row per ingredient, with meal-level fields repeated
+      const rows = [['meal_name','tags','meal_notes','ingredient_qty','ingredient_unit','ingredient_name']];
+      for (const m of (allMeals||[])) {
+        const tags = (m.season||[]).join('; ');
+        const notes = (m.notes||'').replace(/\r?\n/g, ' ');
+        const ings = ingByMeal[m.id] || [];
+        if (!ings.length) {
+          rows.push([m.name, tags, notes, '', '', '']);
+        } else {
+          for (const ing of ings) {
+            rows.push([m.name, tags, notes, ing.quantity!=null?ing.quantity:'', ing.unit||'', ing.name]);
+          }
+        }
+      }
+      const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
+      downloadFile(csv, 'meal-planner-recipes.csv', 'text/csv');
+    }
+    setStatus('Export ready! ✓');
+  } catch(e) {
+    setStatus('Export failed: ' + e.message, true);
+  }
+}
+
+function csvCell(val) {
+  const s = String(val == null ? '' : val);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadFile(text, filename, mime) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function handleTagClick(el) { toggleMealTag(el.dataset.meal, el.dataset.tag); }
