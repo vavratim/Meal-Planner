@@ -152,7 +152,7 @@ header h1 { font-size: 19px; font-weight: 500; }
 .count-area { display: flex; align-items: center; gap: 4px; }
 .count-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #d0cfc8; background: #fafaf8; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; color: #555; }
 .count-btn:hover { background: #f0efe8; }
-.count-num { font-size: 13px; font-weight: 500; min-width: 26px; text-align: center; }
+.count-num { font-size: 12px; font-weight: 500; color: #888; background: #f0efe8; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .btn-edit { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #d0cfc8; background: transparent; cursor: pointer; color: #666; }
 .btn-edit:hover { background: #f0efe8; }
 .btn-edit.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
@@ -489,7 +489,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">View</div>
       <div class="dropdown-item" onclick="toggleCounts()">
         <span class="di-icon">🔢</span>
-        <span class="di-label">Show use counts</span>
+        <span class="di-label">Show times published</span>
         <div class="di-toggle" id="counts-toggle"></div>
       </div>
       <div class="dropdown-item" onclick="toggleRecentMode()">
@@ -547,7 +547,7 @@ header h1 { font-size: 19px; font-weight: 500; }
       <div class="dropdown-section">About</div>
       <div class="dropdown-item" style="cursor:default;">
         <span class="di-icon">🔖</span>
-        <span class="di-label" style="color:#aaa;">Version rev-93</span>
+        <span class="di-label" style="color:#aaa;">Version rev-94</span>
       </div>
     </div>
   </div>
@@ -684,7 +684,7 @@ function authHeaders() {
 let meals = [], allTags = [...DEFAULT_TAGS], tagsRowId = null;
 const DEFAULT_UNITS = ['tsp', 'tbsp', 'cup', 'fl oz', 'oz', 'lb', 'g', 'kg', 'ml', 'l', 'pinch', 'dash', 'can', 'pkg', 'bunch', 'slice', 'clove', 'piece', 'whole'];
 let allUnits = [...DEFAULT_UNITS], unitsRowId = null;
-let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'plan-freq';
+let currentFilter = 'all', showCounts = false, openEditorId = null, selectedAddTags = [], currentSort = 'plan-freq-desc';
 let recentWeeks = 0;        // 0 = disabled
 let recentHide = true;      // true=hide, false=gray out
 let recentMealNames = new Set(); // meal names used in last N weeks
@@ -910,8 +910,8 @@ function buildFilterBar() {
       <div class="sort-wrap">
         <label for="sort-select">Sort:</label>
         <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
-          <option value="plan-freq-desc" ${currentSort==='plan-freq-desc'?'selected':''}>Plan freq: High → Low</option>
-          <option value="plan-freq-asc"  ${currentSort==='plan-freq-asc'?'selected':''}>Plan freq: Low → High</option>
+          <option value="plan-freq-desc" ${currentSort==='plan-freq-desc'?'selected':''}>Most used</option>
+          <option value="plan-freq-asc"  ${currentSort==='plan-freq-asc'?'selected':''}>Least used</option>
           <option value="alpha-asc"  ${currentSort==='alpha-asc'?'selected':''}>A → Z</option>
           <option value="alpha-desc" ${currentSort==='alpha-desc'?'selected':''}>Z → A</option>
         </select>
@@ -1037,11 +1037,7 @@ function renderList() {
     const isChecked = checkedNames.has(m.name);
     const isRecent = recentWeeks && recentMealNames.has(m.name);
     const countHtml = showCounts
-      ? `<div class="count-area">
-           <button class="count-btn" onclick="adjustCount('${m.id}',-1)">−</button>
-           <span class="count-num">${m.count}</span>
-           <button class="count-btn" onclick="adjustCount('${m.id}',1)">+</button>
-         </div>`
+      ? `<div class="count-area"><span class="count-num" title="Times published">${m._planCount||0}×</span></div>`
       : '';
     return `<div class="meal-row ${isRecent ? 'recently-used' : ''}" id="row-${m.id}">
       <div class="meal-main">
