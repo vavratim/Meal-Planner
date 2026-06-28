@@ -542,7 +542,7 @@ header h1 { font-size: 19px; font-weight: 500; }
           </div>
         </div>
       </div>
-      <div class="dropdown-footer">rev-104</div>
+      <div class="dropdown-footer">rev-105</div>
     </div>
   </div>
 </header>
@@ -2101,10 +2101,17 @@ function parseICS(icsText) {
       expandRecurring(ve, rangeStart, rangeEnd, buildEvent, events, skip);
     } else {
       // Single event (including moved occurrences with RECURRENCE-ID)
-      events.push(buildEvent(ve.title || '(no title)', ve.startObj, ve.endObj, ve.allDay));
+      // Only include if it falls within the visible window
+      if (ve.startObj >= rangeStart && ve.startObj <= rangeEnd) {
+        events.push(buildEvent(ve.title || '(no title)', ve.startObj, ve.endObj, ve.allDay));
+      }
     }
   }
-  return events;
+
+  // Final safety net: hard-filter ALL events to the visible window by date string.
+  const startStr = localDateStr(rangeStart);
+  const endStr = localDateStr(rangeEnd);
+  return events.filter(ev => ev.date >= startStr && ev.date <= endStr);
 }
 
 // Expand a recurring event within [start,end]. Handles FREQ + INTERVAL + UNTIL + COUNT + BYDAY (weekly).
@@ -2144,7 +2151,7 @@ function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events, skip) {
   }
 
   let n = 0;
-  const maxIter = 500;
+  const maxIter = 6000; // enough to step daily events across many years
 
   if (freq === 'WEEKLY' && byDays && byDays.length) {
     // Walk week by week; within each active week, emit each BYDAY
@@ -2153,21 +2160,6 @@ function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events, skip) {
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     weekStart.setHours(0,0,0,0);
     let weekIdx = 0;
-    // Fast-forward to near the visible window, preserving biweekly phase.
-    // Count whole weeks using date arithmetic (DST-safe), keep jump a multiple of interval.
-    if (weekStart < rangeStart) {
-      const wsClone = new Date(weekStart);
-      let weeksBehind = 0;
-      // advance week-by-week in date space until within ~2 intervals of rangeStart
-      while (true) {
-        const probe = new Date(wsClone);
-        probe.setDate(probe.getDate() + 7*(weeksBehind + interval));
-        if (probe >= rangeStart) break;
-        weeksBehind += interval;
-        if (weeksBehind > 5000) break;
-      }
-      if (weeksBehind > 0) { weekStart.setDate(weekStart.getDate() + weeksBehind*7); weekIdx += weeksBehind; }
-    }
     for (let i = 0; i < maxIter; i++) {
       if (weekStart > rangeEnd) break;
       if (until && weekStart > until) break;
@@ -2190,40 +2182,8 @@ function expandRecurring(cur, rangeStart, rangeEnd, buildEvent, events, skip) {
     return;
   }
 
-  // Non-BYDAY: simple step
+  // Non-BYDAY: simple step from the original start
   let occ = new Date(cur.startObj);
-  // Fast-forward to near the visible window if the series started long ago
-  if (occ < rangeStart) {
-    if (freq === 'DAILY') {
-      let jumped = 0;
-      while (true) {
-        const probe = new Date(occ);
-        probe.setDate(probe.getDate() + (jumped + interval));
-        if (probe >= rangeStart) break;
-        jumped += interval;
-        if (jumped > 20000) break;
-      }
-      if (jumped > 0) occ.setDate(occ.getDate() + jumped);
-    } else if (freq === 'WEEKLY') {
-      // DST-safe, phase-preserving: advance in interval-week steps
-      let jumped = 0;
-      while (true) {
-        const probe = new Date(occ);
-        probe.setDate(probe.getDate() + 7*(jumped + interval));
-        if (probe >= rangeStart) break;
-        jumped += interval;
-        if (jumped > 5000) break;
-      }
-      if (jumped > 0) occ.setDate(occ.getDate() + jumped*7);
-    } else if (freq === 'MONTHLY') {
-      while (occ < rangeStart) occ.setMonth(occ.getMonth() + interval);
-      // step back one to not skip a boundary occurrence
-      occ.setMonth(occ.getMonth() - interval);
-    } else if (freq === 'YEARLY') {
-      while (occ < rangeStart) occ.setFullYear(occ.getFullYear() + interval);
-      occ.setFullYear(occ.getFullYear() - interval);
-    }
-  }
   for (let i = 0; i < maxIter; i++) {
     if (occ > rangeEnd) break;
     if (until && occ > until) break;
